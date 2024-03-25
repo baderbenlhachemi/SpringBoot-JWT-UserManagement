@@ -165,7 +165,16 @@ public class UserController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        return ResponseEntity.ok(userDetails);
+        // Fetch the User object from the database
+        Optional<User> optionalUser = userRepository.findByUsername(userDetails.getUsername());
+
+        if (!optionalUser.isPresent()) {
+            return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
+        }
+
+        User user = optionalUser.get();
+
+        return ResponseEntity.ok(user);
     }
 
     @GetMapping("/users/{username}")
@@ -180,13 +189,11 @@ public class UserController {
             return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
         }
 
-        User user = optionalUser.get();
-
         if (!userDetails.getUsername().equals(username) && !userDetails.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"))) {
             return new ResponseEntity<>("You are not allowed to access this profile", HttpStatus.FORBIDDEN);
         }
 
-        return ResponseEntity.ok(user);
+        return ResponseEntity.ok(userDetails);
     }
 
 }

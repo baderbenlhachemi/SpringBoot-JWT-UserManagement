@@ -20,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -133,28 +134,32 @@ public class UserController {
                 .orElse(null);
 
         if (user == null) {
-            return ResponseEntity.badRequest().body("User not found");
+            return ResponseEntity.badRequest().body("User not found!");
         }
 
-        // Authenticate the user
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getUsername(), loginRequest.getPassword()));
+        try {
+            // Authenticate the user
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(user.getUsername(), loginRequest.getPassword()));
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Generate a JWT token that includes the user's email
-        String jwt = jwtUtils.generateJwtToken(authentication);
+            // Generate a JWT token that includes the user's email
+            String jwt = jwtUtils.generateJwtToken(authentication);
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        List<String> roles = userDetails.getAuthorities().stream()
-                .map(item -> item.getAuthority())
-                .collect(Collectors.toList());
+            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+            List<String> roles = userDetails.getAuthorities().stream()
+                    .map(item -> item.getAuthority())
+                    .collect(Collectors.toList());
 
-        return ResponseEntity.ok(new JwtResponse(jwt,
-                userDetails.getId(),
-                userDetails.getUsername(),
-                userDetails.getEmail(),
-                roles));
+            return ResponseEntity.ok(new JwtResponse(jwt,
+                    userDetails.getId(),
+                    userDetails.getUsername(),
+                    userDetails.getEmail(),
+                    roles));
+        } catch (BadCredentialsException e) {
+            return ResponseEntity.badRequest().body("Invalid password!");
+        }
     }
 
     @GetMapping("/users/me")
@@ -167,7 +172,7 @@ public class UserController {
         Optional<User> optionalUser = userService.findByUsername(userDetails.getUsername());
 
         if (!optionalUser.isPresent()) {
-            return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>("User not found!", HttpStatus.NOT_FOUND);
         }
 
         User user = optionalUser.get();
@@ -184,11 +189,11 @@ public class UserController {
         Optional<User> optionalUser = userService.findByUsername(username);
 
         if (!optionalUser.isPresent()) {
-            return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
+            return new ResponseEntity<>("User not found!", HttpStatus.NOT_FOUND);
         }
 
         if (!userDetails.getUsername().equals(username) && !userDetails.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"))) {
-            return new ResponseEntity<>("You are not allowed to access this profile", HttpStatus.FORBIDDEN);
+            return new ResponseEntity<>("You are not allowed to access this profile!", HttpStatus.FORBIDDEN);
         }
 
         User user = optionalUser.get();

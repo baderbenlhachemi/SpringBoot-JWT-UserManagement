@@ -1,5 +1,8 @@
 package com.cirestechnologies.demo.controller;
 
+import com.cirestechnologies.demo.exception.AccessDeniedException;
+import com.cirestechnologies.demo.exception.InvalidPasswordException;
+import com.cirestechnologies.demo.exception.UserNotFoundException;
 import com.cirestechnologies.demo.model.ERole;
 import com.cirestechnologies.demo.model.Role;
 import com.cirestechnologies.demo.model.User;
@@ -11,16 +14,15 @@ import com.cirestechnologies.demo.service.FakeDataService;
 import com.cirestechnologies.demo.service.RoleService;
 import com.cirestechnologies.demo.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -55,7 +57,7 @@ public class UserController {
     private FakeDataService fakeDataService;
 
     @GetMapping("/users/generate/{count}")
-    public ResponseEntity<FileSystemResource> generateUsers(@PathVariable int count, HttpServletResponse response) {
+    public ResponseEntity<FileSystemResource> generateUsers(@PathVariable int count, HttpServletResponse response) throws IOException {
         // Generate user data
         List<User> users = new ArrayList<>();
 
@@ -63,29 +65,25 @@ public class UserController {
             users.add(fakeDataService.generateFakeUser());
         }
 
-        try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            String json = objectMapper.writeValueAsString(users);
+        ObjectMapper objectMapper = new ObjectMapper();
+        String json = objectMapper.writeValueAsString(users);
 
-            // Write the JSON to a file
-            Path path = Paths.get("users.json");
-            Files.write(path, json.getBytes());
+        // Write the JSON to a file
+        Path path = Paths.get("users.json");
+        Files.write(path, json.getBytes());
 
-            // Create a resource from the file
-            FileSystemResource resource = new FileSystemResource(path.toFile());
+        // Create a resource from the file
+        FileSystemResource resource = new FileSystemResource(path.toFile());
 
-            response.setHeader("Content-Disposition", "attachment; filename=users.json");
+        response.setHeader("Content-Disposition", "attachment; filename=users.json");
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(resource);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
     }
 
     @PostMapping("/users/batch")
-    public ResponseEntity<?> batchUsers(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> batchUsers(@RequestParam("file") MultipartFile file) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         int totalRecords = 0;
         int successfulImports = 0;
@@ -97,106 +95,81 @@ public class UserController {
         Role userRole = roleService.findByName(ERole.ROLE_USER)
                 .orElseGet(() -> roleService.save(new Role(ERole.ROLE_USER)));
 
-        try {
-            User[] users = mapper.readValue(file.getInputStream(), User[].class);
-            totalRecords = users.length;
+        User[] users = mapper.readValue(file.getInputStream(), User[].class);
+        totalRecords = users.length;
 
-            for (User user : users) {
-                if (!userService.existsByUsername(user.getUsername()) && !userService.existsByEmail(user.getEmail())) {
-                    user.setPassword(user.getPassword());
+        for (User user : users) {
+            if (!userService.existsByUsername(user.getUsername()) && !userService.existsByEmail(user.getEmail())) {
+                user.setPassword(user.getPassword());
 
-                    // Replace the role in the user object with the role from the database
-                    Role savedRole = user.getRole().getName() == ERole.ROLE_ADMIN ? adminRole : userRole;
-                    user.setRole(savedRole);
+                // Replace the role in the user object with the role from the database
+                Role savedRole = user.getRole().getName() == ERole.ROLE_ADMIN ? adminRole : userRole;
+                user.setRole(savedRole);
 
-                    userService.save(user);
-                    successfulImports++;
-                } else {
-                    failedImports++;
-                }
+                userService.save(user);
+                successfulImports++;
+            } else {
+                failedImports++;
             }
-
-            Map<String, Integer> response = new HashMap<>();
-            response.put("totalRecords", totalRecords);
-            response.put("successfulImports", successfulImports);
-            response.put("failedImports", failedImports);
-
-            return ResponseEntity.ok(response);
-        } catch (IOException e) {
-            return ResponseEntity.badRequest().build();
         }
+
+        Map<String, Integer> response = new HashMap<>();
+        response.put("totalRecords", totalRecords);
+        response.put("successfulImports", successfulImports);
+        response.put("failedImports", failedImports);
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/auth")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) throws UserNotFoundException, InvalidPasswordException {
         // Check if a user with the provided username or email exists
         User user = userService.findByUsernameOrEmail(loginRequest.getUsername(), loginRequest.getEmail())
-                .orElse(null);
+                .orElseThrow(() -> new UserNotFoundException("User not found!"));
 
-        if (user == null) {
-            return ResponseEntity.badRequest().body("User not found!");
-        }
+        // Authenticate the user
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(user.getUsername(), loginRequest.getPassword()));
 
-        try {
-            // Authenticate the user
-            Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(user.getUsername(), loginRequest.getPassword()));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+        // Generate a JWT token that includes the user's email
+        String jwt = jwtUtils.generateJwtToken(authentication);
 
-            // Generate a JWT token that includes the user's email
-            String jwt = jwtUtils.generateJwtToken(authentication);
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(item -> item.getAuthority())
+                .collect(Collectors.toList());
 
-            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-            List<String> roles = userDetails.getAuthorities().stream()
-                    .map(item -> item.getAuthority())
-                    .collect(Collectors.toList());
-
-            return ResponseEntity.ok(new JwtResponse(jwt,
-                    userDetails.getId(),
-                    userDetails.getUsername(),
-                    userDetails.getEmail(),
-                    roles));
-        } catch (BadCredentialsException e) {
-            return ResponseEntity.badRequest().body("Invalid password!");
-        }
+        return ResponseEntity.ok(new JwtResponse(jwt,
+                userDetails.getId(),
+                userDetails.getUsername(),
+                userDetails.getEmail(),
+                roles));
     }
 
     @GetMapping("/users/me")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public ResponseEntity<?> getMyProfile() {
+    public ResponseEntity<?> getMyProfile() throws UserNotFoundException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
         // Fetch the User object from the database
-        Optional<User> optionalUser = userService.findByUsername(userDetails.getUsername());
-
-        if (!optionalUser.isPresent()) {
-            return new ResponseEntity<>("User not found!", HttpStatus.NOT_FOUND);
-        }
-
-        User user = optionalUser.get();
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new UserNotFoundException("User not found!"));
 
         return ResponseEntity.ok(user);
     }
 
-    @GetMapping("/users/{username}")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<?> getUserProfile(@PathVariable String username) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-
-        Optional<User> optionalUser = userService.findByUsername(username);
-
-        if (!optionalUser.isPresent()) {
-            return new ResponseEntity<>("User not found!", HttpStatus.NOT_FOUND);
-        }
+    @GetMapping("/users/{username}") @PreAuthorize("isAuthenticated()") public ResponseEntity<?> getUserProfile(@PathVariable String username) throws UserNotFoundException, AccessDeniedException { Authentication authentication = SecurityContextHolder.getContext().getAuthentication(); UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        User user = userService.findByUsername(username)
+                .orElseThrow(() -> new UserNotFoundException("User not found!"));
 
         if (!userDetails.getUsername().equals(username) && !userDetails.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"))) {
-            return new ResponseEntity<>("You are not allowed to access this profile!", HttpStatus.FORBIDDEN);
+            throw new AccessDeniedException("You are not allowed to access this profile!");
         }
 
-        User user = optionalUser.get();
         UserDetailsImpl userDetailsToReturn = UserDetailsImpl.build(user);
 
         return ResponseEntity.ok(userDetailsToReturn);

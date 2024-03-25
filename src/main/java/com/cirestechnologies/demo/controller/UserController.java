@@ -5,11 +5,11 @@ import com.cirestechnologies.demo.model.Role;
 import com.cirestechnologies.demo.model.User;
 import com.cirestechnologies.demo.payload.request.LoginRequest;
 import com.cirestechnologies.demo.payload.response.JwtResponse;
-import com.cirestechnologies.demo.repository.RoleRepository;
-import com.cirestechnologies.demo.repository.UserRepository;
 import com.cirestechnologies.demo.security.jwt.JwtUtils;
 import com.cirestechnologies.demo.security.services.UserDetailsImpl;
 import com.cirestechnologies.demo.service.FakeDataService;
+import com.cirestechnologies.demo.service.RoleService;
+import com.cirestechnologies.demo.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -39,10 +39,10 @@ import java.util.stream.Collectors;
 public class UserController {
 
     @Autowired
-    private UserRepository userRepository;
+    private UserService userService;
 
     @Autowired
-    private RoleRepository roleRepository;
+    private RoleService roleService;
 
     @Autowired
     private AuthenticationManager authenticationManager;
@@ -91,24 +91,24 @@ public class UserController {
         int failedImports = 0;
 
         // Ensure roles are saved in the database
-        Role adminRole = roleRepository.findByName(ERole.ROLE_ADMIN)
-                .orElseGet(() -> roleRepository.save(new Role(ERole.ROLE_ADMIN)));
-        Role userRole = roleRepository.findByName(ERole.ROLE_USER)
-                .orElseGet(() -> roleRepository.save(new Role(ERole.ROLE_USER)));
+        Role adminRole = roleService.findByName(ERole.ROLE_ADMIN)
+                .orElseGet(() -> roleService.save(new Role(ERole.ROLE_ADMIN)));
+        Role userRole = roleService.findByName(ERole.ROLE_USER)
+                .orElseGet(() -> roleService.save(new Role(ERole.ROLE_USER)));
 
         try {
             User[] users = mapper.readValue(file.getInputStream(), User[].class);
             totalRecords = users.length;
 
             for (User user : users) {
-                if (!userRepository.existsByUsername(user.getUsername()) && !userRepository.existsByEmail(user.getEmail())) {
+                if (!userService.existsByUsername(user.getUsername()) && !userService.existsByEmail(user.getEmail())) {
                     user.setPassword(user.getPassword());
 
                     // Replace the role in the user object with the role from the database
                     Role savedRole = user.getRole().getName() == ERole.ROLE_ADMIN ? adminRole : userRole;
                     user.setRole(savedRole);
 
-                    userRepository.save(user);
+                    userService.save(user);
                     successfulImports++;
                 } else {
                     failedImports++;
@@ -129,7 +129,7 @@ public class UserController {
     @PostMapping("/auth")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         // Check if a user with the provided username or email exists
-        User user = userRepository.findByUsernameOrEmail(loginRequest.getUsername(), loginRequest.getEmail())
+        User user = userService.findByUsernameOrEmail(loginRequest.getUsername(), loginRequest.getEmail())
                 .orElse(null);
 
         if (user == null) {
@@ -164,7 +164,7 @@ public class UserController {
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
         // Fetch the User object from the database
-        Optional<User> optionalUser = userRepository.findByUsername(userDetails.getUsername());
+        Optional<User> optionalUser = userService.findByUsername(userDetails.getUsername());
 
         if (!optionalUser.isPresent()) {
             return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
@@ -181,7 +181,7 @@ public class UserController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        Optional<User> optionalUser = userRepository.findByUsername(username);
+        Optional<User> optionalUser = userService.findByUsername(username);
 
         if (!optionalUser.isPresent()) {
             return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);

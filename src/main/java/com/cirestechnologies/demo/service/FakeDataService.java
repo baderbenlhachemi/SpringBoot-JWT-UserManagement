@@ -9,9 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.HashSet;
-
 @Service
 public class FakeDataService {
 
@@ -44,7 +41,7 @@ public class FakeDataService {
         user.setPassword(encoder.encode("password"));
 
         ERole randomRole = faker.bool().bool() ? ERole.ROLE_ADMIN : ERole.ROLE_USER;
-        user.setRoles(new HashSet<>(Collections.singletonList(randomRole == ERole.ROLE_ADMIN ? adminRole : userRole)));
+        user.setRole(randomRole == ERole.ROLE_ADMIN ? adminRole : userRole);
 
         return user;
     }

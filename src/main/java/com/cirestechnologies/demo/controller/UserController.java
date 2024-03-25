@@ -104,11 +104,9 @@ public class UserController {
                 if (!userRepository.existsByUsername(user.getUsername()) && !userRepository.existsByEmail(user.getEmail())) {
                     user.setPassword(user.getPassword());
 
-                    // Replace the roles in the user object with the roles from the database
-                    Set<Role> savedRoles = user.getRoles().stream()
-                            .map(role -> role.getName() == ERole.ROLE_ADMIN ? adminRole : userRole)
-                            .collect(Collectors.toSet());
-                    user.setRoles(savedRoles);
+                    // Replace the role in the user object with the role from the database
+                    Role savedRole = user.getRole().getName() == ERole.ROLE_ADMIN ? adminRole : userRole;
+                    user.setRole(savedRole);
 
                     userRepository.save(user);
                     successfulImports++;
@@ -193,7 +191,10 @@ public class UserController {
             return new ResponseEntity<>("You are not allowed to access this profile", HttpStatus.FORBIDDEN);
         }
 
-        return ResponseEntity.ok(userDetails);
+        User user = optionalUser.get();
+        UserDetailsImpl userDetailsToReturn = UserDetailsImpl.build(user);
+
+        return ResponseEntity.ok(userDetailsToReturn);
     }
 
 }

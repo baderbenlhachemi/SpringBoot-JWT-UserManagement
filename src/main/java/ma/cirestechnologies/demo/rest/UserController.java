@@ -132,7 +132,7 @@ public class UserController {
     @PostMapping("/auth")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
         // Check if a user with the provided username or email exists
-        User user = userRepository.findByUsername(loginRequest.getUsername())
+        User user = userRepository.findByUsernameOrEmail(loginRequest.getUsername(), loginRequest.getEmail())
                 .orElse(null);
 
         if (user == null) {
@@ -141,7 +141,7 @@ public class UserController {
 
         // Authenticate the user
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+                new UsernamePasswordAuthenticationToken(user.getUsername(), loginRequest.getPassword()));
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
@@ -158,7 +158,6 @@ public class UserController {
                 userDetails.getUsername(),
                 userDetails.getEmail(),
                 roles));
-
     }
 
     @GetMapping("/users/me")

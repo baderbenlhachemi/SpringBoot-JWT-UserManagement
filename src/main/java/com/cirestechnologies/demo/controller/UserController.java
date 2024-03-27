@@ -14,7 +14,6 @@ import com.cirestechnologies.demo.service.FakeDataService;
 import com.cirestechnologies.demo.service.RoleService;
 import com.cirestechnologies.demo.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +64,7 @@ public class UserController {
             users.add(fakeDataService.generateFakeUser());
         }
 
+        // Convert the list of users to JSON
         ObjectMapper objectMapper = new ObjectMapper();
         String json = objectMapper.writeValueAsString(users);
 
@@ -75,8 +75,10 @@ public class UserController {
         // Create a resource from the file
         FileSystemResource resource = new FileSystemResource(path.toFile());
 
+        // Set the response headers
         response.setHeader("Content-Disposition", "attachment; filename=users.json");
 
+        // Return the file as a response
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(resource);
@@ -95,9 +97,11 @@ public class UserController {
         Role userRole = roleService.findByName(ERole.ROLE_USER)
                 .orElseGet(() -> roleService.save(new Role(ERole.ROLE_USER)));
 
+        // Read the users from the file and convert them to User objects
         User[] users = mapper.readValue(file.getInputStream(), User[].class);
         totalRecords = users.length;
 
+        // Save each user to the database
         for (User user : users) {
             if (!userService.existsByUsername(user.getUsername()) && !userService.existsByEmail(user.getEmail())) {
                 user.setPassword(user.getPassword());
@@ -113,6 +117,7 @@ public class UserController {
             }
         }
 
+        // Return the response
         Map<String, Integer> response = new HashMap<>();
         response.put("totalRecords", totalRecords);
         response.put("successfulImports", successfulImports);
@@ -131,16 +136,19 @@ public class UserController {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(user.getUsername(), loginRequest.getPassword()));
 
+        // Set the authentication object in the SecurityContext
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Generate a JWT token that includes the user's email
+        // Generate a JWT token
         String jwt = jwtUtils.generateJwtToken(authentication);
 
+        // Get the roles of the authenticated user
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .collect(Collectors.toList());
 
+        // Return the JWT token and user details
         return ResponseEntity.ok(new JwtResponse(jwt,
                 userDetails.getId(),
                 userDetails.getUsername(),
@@ -151,25 +159,32 @@ public class UserController {
     @GetMapping("/users/me")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public ResponseEntity<?> getMyProfile() throws UserNotFoundException {
+        // Fetch the user details from the SecurityContext
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
+        // Get the UserDetailsImpl object from the authentication object
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        // Fetch the User object from the database
+        // Find the user in the database
         User user = userService.findByUsername(userDetails.getUsername())
                 .orElseThrow(() -> new UserNotFoundException("User not found!"));
 
         return ResponseEntity.ok(user);
     }
 
-    @GetMapping("/users/{username}") @PreAuthorize("isAuthenticated()") public ResponseEntity<?> getUserProfile(@PathVariable String username) throws UserNotFoundException, AccessDeniedException { Authentication authentication = SecurityContextHolder.getContext().getAuthentication(); UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+    @GetMapping("/users/{username}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> getUserProfile(@PathVariable String username) throws UserNotFoundException, AccessDeniedException { Authentication authentication = SecurityContextHolder.getContext().getAuthentication(); UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        // Find the user in the database
         User user = userService.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found!"));
 
+        // Check if the authenticated user is allowed to access this profile
         if (!userDetails.getUsername().equals(username) && !userDetails.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"))) {
             throw new AccessDeniedException("You are not allowed to access this profile!");
         }
 
+        // Return the user details
         UserDetailsImpl userDetailsToReturn = UserDetailsImpl.build(user);
 
         return ResponseEntity.ok(userDetailsToReturn);

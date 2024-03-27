@@ -35,11 +35,13 @@ public class WebSecurityConfig {
             "/swagger-ui.html",
     };
 
+    // Custom filter to handle JWT authentication
     @Bean
     public AuthTokenFilter authenticationJwtTokenFilter() {
         return new AuthTokenFilter();
     }
 
+    // Provider to authenticate users
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
@@ -50,6 +52,7 @@ public class WebSecurityConfig {
         return authProvider;
     }
 
+    // Responsible for authenticating users
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
         return authConfig.getAuthenticationManager();
@@ -71,10 +74,13 @@ public class WebSecurityConfig {
                                 .anyRequest().authenticated()
                 );
 
+        // Add the authentication provider to the http object
         http.authenticationProvider(authenticationProvider());
 
+        // Add the custom filter to the http object
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
+        // Return the http object
         return http.build();
     }
 

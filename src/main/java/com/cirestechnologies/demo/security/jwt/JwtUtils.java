@@ -24,10 +24,13 @@ public class JwtUtils {
     @Value("${cirestechnologies.demo.jwtExpirationMs}")
     private int jwtExpirationMs;
 
+    // Generate a JWT token for authenticated users
     public String generateJwtToken(Authentication authentication) {
 
+        // Get the user details from the authentication object
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
+        // Set and return the JWT token
         return Jwts.builder()
                 .setSubject((userPrincipal.getUsername()))
                 .setIssuedAt(new Date())
@@ -36,15 +39,18 @@ public class JwtUtils {
                 .compact();
     }
 
+    // Decode the JWT secret key
     private Key key() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
     }
 
+    // Get the username from the JWT token
     public String getUserNameFromJwtToken(String token) {
         return Jwts.parserBuilder().setSigningKey(key()).build()
                 .parseClaimsJws(token).getBody().getSubject();
     }
 
+    // Validate the JWT token
     public boolean validateJwtToken(String authToken) {
         try {
             Jwts.parserBuilder().setSigningKey(key()).build().parse(authToken);

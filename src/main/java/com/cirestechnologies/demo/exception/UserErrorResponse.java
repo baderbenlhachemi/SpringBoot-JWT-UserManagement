@@ -1,7 +1,6 @@
 package com.cirestechnologies.demo.exception;
 
 public class UserErrorResponse {
-
     private int status;
     private String message;
     private long timeStamp;
@@ -38,5 +37,4 @@ public class UserErrorResponse {
     public void setTimeStamp(long timeStamp) {
         this.timeStamp = timeStamp;
     }
-
 }

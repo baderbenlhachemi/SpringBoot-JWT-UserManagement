@@ -9,7 +9,6 @@ import java.io.IOException;
 
 @ControllerAdvice
 public class UserRestExceptionHandler {
-
     @ExceptionHandler
     public ResponseEntity<UserErrorResponse> handleException(UserNotFoundException exc) {
         UserErrorResponse error = new UserErrorResponse();
@@ -64,5 +63,4 @@ public class UserRestExceptionHandler {
 
         return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
     }
-
 }

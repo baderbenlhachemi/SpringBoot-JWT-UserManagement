@@ -10,7 +10,6 @@ import java.util.Optional;
 
 @Service
 public class RoleService {
-
     private final RoleRepository roleRepository;
 
     @Autowired
@@ -25,5 +24,4 @@ public class RoleService {
     public Role save(Role role) {
         return roleRepository.save(role);
     }
-
 }

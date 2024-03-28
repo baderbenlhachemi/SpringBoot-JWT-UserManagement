@@ -1,7 +1,7 @@
 package com.cirestechnologies.demo.security.services;
 
-import com.cirestechnologies.demo.repository.UserRepository;
 import com.cirestechnologies.demo.model.User;
+import com.cirestechnologies.demo.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -22,5 +22,4 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         return UserDetailsImpl.build(user);
     }
-
 }

@@ -1,17 +1,16 @@
 package com.cirestechnologies.demo.service;
 
-import com.github.javafaker.Faker;
 import com.cirestechnologies.demo.model.ERole;
 import com.cirestechnologies.demo.model.Role;
 import com.cirestechnologies.demo.model.User;
 import com.cirestechnologies.demo.repository.RoleRepository;
+import com.github.javafaker.Faker;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class FakeDataService {
-
     @Autowired
     RoleRepository roleRepository;
 
@@ -45,5 +44,4 @@ public class FakeDataService {
 
         return user;
     }
-
 }

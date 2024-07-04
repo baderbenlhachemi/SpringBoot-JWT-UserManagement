@@ -1,6 +1,9 @@
-# Mini-Projet API Utilisateur
+# JWT User Management
 
-Ce projet est une application Spring Boot qui fournit une API REST pour la gestion des utilisateurs. Il utilise Spring Security avec JWT pour l'authentification et l'autorisation, et la bibliothèque Faker pour générer des données d'utilisateurs aléatoires. Le projet comprend plusieurs endpoints pour générer des utilisateurs, importer des utilisateurs à partir d'un fichier JSON, authentifier les utilisateurs et consulter les profils des utilisateurs.
+Ce projet est une application développée avec `Spring Boot` et `Spring Security`, générant des utilisateurs avec des données vraisemblables (nom, adresse, téléphone...) grâce à la bibliothèque `Faker`. Chaque utilisateur reçoit un nom d'utilisateur, une adresse email et un mot de passe pour se connecter et obtenir un `JWT` afin de gérer l'authentification et les autorisations. Les utilisateurs sont assignés aléatoirement à des rôles `admin` ou `user`, chacun disposant de ses propres autorisations spécifiques.
+
+Le projet comprend plusieurs endpoints pour générer des utilisateurs, importer des utilisateurs à partir d'un fichier `JSON`, authentifier les utilisateurs et consulter les profils des utilisateurs.
+
 ## Endpoints
 
 ### 1. Génération d'utilisateurs

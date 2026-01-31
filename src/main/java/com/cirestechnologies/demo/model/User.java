@@ -20,7 +20,6 @@ import java.util.Date;
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @JsonIgnore
     private Long id;
 
     @NotBlank
@@ -68,6 +67,16 @@ public class User {
     @JoinColumn(name = "role_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Role role;
+
+    private boolean enabled = true;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = new Date();
+    }
 
     public User() {
     }

@@ -364,6 +364,174 @@ public class ApiService {
     }
 
     /**
+     * Get user by ID (Admin only)
+     */
+    public CompletableFuture<ApiResult<User>> getUserById(String token, Long userId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Request request = new Request.Builder()
+                        .url(BASE_URL + "/users/id/" + userId)
+                        .header("Authorization", token)
+                        .get()
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        User user = gson.fromJson(responseBody, User.class);
+                        return ApiResult.success(user);
+                    } else {
+                        return ApiResult.error("Failed to get user: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Delete user (Admin only)
+     */
+    public CompletableFuture<ApiResult<String>> deleteUser(String token, Long userId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Request request = new Request.Builder()
+                        .url(BASE_URL + "/users/" + userId)
+                        .header("Authorization", token)
+                        .delete()
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        return ApiResult.success("User deleted successfully");
+                    } else {
+                        return ApiResult.error("Failed to delete user: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Update user (Admin only - can edit any user)
+     */
+    public CompletableFuture<ApiResult<User>> updateUserById(String token, Long userId, User updatedUser) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String jsonBody = gson.toJson(updatedUser);
+                RequestBody body = RequestBody.create(jsonBody, JSON);
+
+                Request request = new Request.Builder()
+                        .url(BASE_URL + "/users/" + userId)
+                        .header("Authorization", token)
+                        .put(body)
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        User user = gson.fromJson(responseBody, User.class);
+                        return ApiResult.success(user);
+                    } else {
+                        return ApiResult.error("Failed to update user: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Change user role (Admin only)
+     */
+    public CompletableFuture<ApiResult<String>> changeUserRole(String token, Long userId, String newRole) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Request request = new Request.Builder()
+                        .url(BASE_URL + "/users/" + userId + "/role?role=" + newRole)
+                        .header("Authorization", token)
+                        .patch(RequestBody.create("", JSON))
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        return ApiResult.success("Role updated successfully");
+                    } else {
+                        return ApiResult.error("Failed to change role: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Toggle user status (enable/disable) - Admin only
+     */
+    public CompletableFuture<ApiResult<String>> toggleUserStatus(String token, Long userId, boolean enabled) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Request request = new Request.Builder()
+                        .url(BASE_URL + "/users/" + userId + "/status?enabled=" + enabled)
+                        .header("Authorization", token)
+                        .patch(RequestBody.create("", JSON))
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        return ApiResult.success(enabled ? "User enabled" : "User disabled");
+                    } else {
+                        return ApiResult.error("Failed to update status: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Get user stats (Admin only)
+     */
+    public CompletableFuture<ApiResult<UserStats>> getUserStats(String token) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                Request request = new Request.Builder()
+                        .url(BASE_URL + "/stats/users")
+                        .header("Authorization", token)
+                        .get()
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        UserStats stats = gson.fromJson(responseBody, UserStats.class);
+                        return ApiResult.success(stats);
+                    } else {
+                        return ApiResult.error("Failed to get stats: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
      * Inner class to hold API result (success or error)
      */
     public static class ApiResult<T> {

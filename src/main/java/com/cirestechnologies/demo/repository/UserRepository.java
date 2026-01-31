@@ -1,5 +1,6 @@
 package com.cirestechnologies.demo.repository;
 
+import com.cirestechnologies.demo.model.ERole;
 import com.cirestechnologies.demo.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Date;
 import java.util.Optional;
 
 @Repository
@@ -25,4 +27,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "LOWER(u.lastName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(u.company) LIKE LOWER(CONCAT('%', :search, '%'))")
     Page<User> searchUsers(@Param("search") String search, Pageable pageable);
+
+    @Query("SELECT COUNT(u) FROM User u WHERE u.role.name = :roleName")
+    long countByRoleName(@Param("roleName") ERole roleName);
+
+    @Query("SELECT COUNT(u) FROM User u WHERE u.createdAt >= :since")
+    long countNewUsersSince(@Param("since") Date since);
+
+    Optional<User> findById(Long id);
 }

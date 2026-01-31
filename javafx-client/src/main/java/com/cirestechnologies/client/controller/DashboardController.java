@@ -316,6 +316,38 @@ public class DashboardController {
             createStatCard("API Server", "localhost:9090", "fas-server", Color.web("#3B82F6"))
         );
 
+        // Admin stats section
+        VBox adminStatsSection = new VBox(16);
+        if (sessionManager.isAdmin()) {
+            Label adminStatsLabel = new Label("User Statistics");
+            adminStatsLabel.setFont(Font.font("System", FontWeight.BOLD, 20));
+            adminStatsLabel.setTextFill(Color.WHITE);
+            adminStatsLabel.setPadding(new Insets(20, 0, 0, 0));
+
+            HBox adminStatsRow = new HBox(20);
+
+            // Create stat cards with placeholders
+            VBox totalUsersCard = createStatCard("Total Users", "...", "fas-users", Color.web("#6366F1"));
+            VBox adminsCard = createStatCard("Admins", "...", "fas-user-shield", Color.web("#8B5CF6"));
+            VBox regularUsersCard = createStatCard("Regular Users", "...", "fas-user", Color.web("#10B981"));
+            VBox newTodayCard = createStatCard("New Today", "...", "fas-user-plus", Color.web("#F59E0B"));
+
+            adminStatsRow.getChildren().addAll(totalUsersCard, adminsCard, regularUsersCard, newTodayCard);
+            adminStatsSection.getChildren().addAll(adminStatsLabel, adminStatsRow);
+
+            // Load stats asynchronously
+            apiService.getUserStats(sessionManager.getAuthorizationHeader())
+                .thenAccept(result -> Platform.runLater(() -> {
+                    if (result.isSuccess()) {
+                        UserStats stats = result.getData();
+                        updateStatCardValue(totalUsersCard, String.valueOf(stats.getTotalUsers()));
+                        updateStatCardValue(adminsCard, String.valueOf(stats.getTotalAdmins()));
+                        updateStatCardValue(regularUsersCard, String.valueOf(stats.getTotalRegularUsers()));
+                        updateStatCardValue(newTodayCard, String.valueOf(stats.getNewUsersToday()));
+                    }
+                }));
+        }
+
         // Quick actions
         Label actionsLabel = new Label("Quick Actions");
         actionsLabel.setFont(Font.font("System", FontWeight.BOLD, 20));
@@ -343,7 +375,7 @@ public class DashboardController {
         // Info card
         VBox infoCard = createInfoCard();
 
-        dashboardContent.getChildren().addAll(welcomeSection, statsRow, actionsLabel, actionsRow, infoCard);
+        dashboardContent.getChildren().addAll(welcomeSection, statsRow, adminStatsSection, actionsLabel, actionsRow, infoCard);
         scrollPane.setContent(dashboardContent);
         contentArea.getChildren().add(scrollPane);
 
@@ -384,6 +416,18 @@ public class DashboardController {
         card.getChildren().addAll(iconRow, titleLabel, valueLabel);
 
         return card;
+    }
+
+    private void updateStatCardValue(VBox card, String newValue) {
+        for (javafx.scene.Node node : card.getChildren()) {
+            if (node instanceof Label) {
+                Label label = (Label) node;
+                if (label.getFont().getSize() >= 18) { // Value label has larger font
+                    label.setText(newValue);
+                    break;
+                }
+            }
+        }
     }
 
     private VBox createActionCard(String title, String description, String iconCode, Color accentColor, Runnable action) {
@@ -1515,9 +1559,10 @@ public class DashboardController {
         // State
         final int[] currentPage = {0};
         final String[] currentSearch = {""};
+        final Runnable[] loadUsersRef = new Runnable[1];
 
         // Load users function
-        Runnable loadUsers = () -> {
+        loadUsersRef[0] = () -> {
             tableContainer.getChildren().clear();
             ProgressIndicator spinner = new ProgressIndicator();
             spinner.setMaxSize(40, 40);
@@ -1528,7 +1573,7 @@ public class DashboardController {
 
             int pageSize = pageSizeCombo.getValue();
 
-            apiService.getAllUsers(sessionManager.getAuthorizationHeader(), currentPage[0], pageSize, "username", "asc", currentSearch[0])
+            apiService.getAllUsers(sessionManager.getAuthorizationHeader(), currentPage[0], pageSize, currentSortBy, currentSortDir, currentSearch[0])
                 .thenAccept(result -> Platform.runLater(() -> {
                     tableContainer.getChildren().clear();
 
@@ -1540,8 +1585,8 @@ public class DashboardController {
                         prevButton.setDisable(response.getCurrentPage() == 0);
                         nextButton.setDisable(response.getCurrentPage() >= response.getTotalPages() - 1);
 
-                        // Table header
-                        HBox headerRow = createUserTableHeader();
+                        // Table header with sort callback
+                        HBox headerRow = createUserTableHeader(loadUsersRef[0]);
                         tableContainer.getChildren().add(headerRow);
 
                         // User rows in a scrollable VBox
@@ -1549,7 +1594,7 @@ public class DashboardController {
 
                         if (response.getUsers() != null && !response.getUsers().isEmpty()) {
                             for (User user : response.getUsers()) {
-                                HBox userRow = createUserTableRow(user);
+                                HBox userRow = createUserTableRow(user, loadUsersRef[0]);
                                 rowsContainer.getChildren().add(userRow);
                             }
                         } else {
@@ -1576,35 +1621,35 @@ public class DashboardController {
         searchButton.setOnAction(e -> {
             currentPage[0] = 0;
             currentSearch[0] = searchField.getText().trim();
-            loadUsers.run();
+            loadUsersRef[0].run();
         });
 
         searchField.setOnAction(e -> {
             currentPage[0] = 0;
             currentSearch[0] = searchField.getText().trim();
-            loadUsers.run();
+            loadUsersRef[0].run();
         });
 
         clearButton.setOnAction(e -> {
             searchField.clear();
             currentPage[0] = 0;
             currentSearch[0] = "";
-            loadUsers.run();
+            loadUsersRef[0].run();
         });
 
         prevButton.setOnAction(e -> {
             currentPage[0]--;
-            loadUsers.run();
+            loadUsersRef[0].run();
         });
 
         nextButton.setOnAction(e -> {
             currentPage[0]++;
-            loadUsers.run();
+            loadUsersRef[0].run();
         });
 
         pageSizeCombo.setOnAction(e -> {
             currentPage[0] = 0;
-            loadUsers.run();
+            loadUsersRef[0].run();
         });
 
         userListContent.getChildren().addAll(headerBox, tableContainer, paginationBox);
@@ -1612,78 +1657,368 @@ public class DashboardController {
         contentArea.getChildren().add(scrollPane);
 
         // Initial load
-        loadUsers.run();
+        loadUsersRef[0].run();
 
         AnimationUtils.fadeIn(userListContent, 300);
     }
 
-    private HBox createUserTableHeader() {
+    // Sort state
+    private String currentSortBy = "username";
+    private String currentSortDir = "asc";
+
+    private HBox createUserTableHeader(Runnable reloadCallback) {
         HBox header = new HBox();
         header.setStyle("-fx-background-color: #334155; -fx-background-radius: 8;");
         header.setPadding(new Insets(12, 16, 12, 16));
         header.setAlignment(Pos.CENTER_LEFT);
 
-        String[] columns = {"Username", "Email", "Name", "Company", "Role"};
-        double[] widths = {150, 200, 150, 150, 100};
+        String[] columns = {"Username", "Email", "Name", "Company", "Role", "Status", "Actions"};
+        String[] sortFields = {"username", "email", "firstName", "company", null, "enabled", null};
+        double[] widths = {130, 180, 130, 120, 80, 80, 140};
 
         for (int i = 0; i < columns.length; i++) {
+            final int index = i;
+            final String sortField = sortFields[i];
+
+            HBox colBox = new HBox(4);
+            colBox.setAlignment(Pos.CENTER_LEFT);
+            colBox.setPrefWidth(widths[i]);
+
             Label colLabel = new Label(columns[i]);
             colLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
             colLabel.setTextFill(Color.web("#94A3B8"));
-            colLabel.setPrefWidth(widths[i]);
-            header.getChildren().add(colLabel);
+
+            colBox.getChildren().add(colLabel);
+
+            // Add sort indicator for sortable columns
+            if (sortField != null) {
+                colBox.setStyle("-fx-cursor: hand;");
+
+                if (currentSortBy.equals(sortField)) {
+                    FontIcon sortIcon = new FontIcon(currentSortDir.equals("asc") ? "fas-sort-up" : "fas-sort-down");
+                    sortIcon.setIconSize(10);
+                    sortIcon.setIconColor(Color.web("#818CF8"));
+                    colBox.getChildren().add(sortIcon);
+                }
+
+                colBox.setOnMouseClicked(e -> {
+                    if (currentSortBy.equals(sortField)) {
+                        currentSortDir = currentSortDir.equals("asc") ? "desc" : "asc";
+                    } else {
+                        currentSortBy = sortField;
+                        currentSortDir = "asc";
+                    }
+                    reloadCallback.run();
+                });
+
+                colBox.setOnMouseEntered(e -> colLabel.setTextFill(Color.web("#818CF8")));
+                colBox.setOnMouseExited(e -> colLabel.setTextFill(Color.web("#94A3B8")));
+            }
+
+            header.getChildren().add(colBox);
         }
 
         return header;
     }
 
-    private HBox createUserTableRow(User user) {
+    private HBox createUserTableRow(User user, Runnable reloadCallback) {
         HBox row = new HBox();
         row.setStyle("-fx-background-color: transparent; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;");
-        row.setPadding(new Insets(12, 16, 12, 16));
+        row.setPadding(new Insets(10, 16, 10, 16));
         row.setAlignment(Pos.CENTER_LEFT);
 
         row.setOnMouseEntered(e -> row.setStyle("-fx-background-color: #334155; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;"));
         row.setOnMouseExited(e -> row.setStyle("-fx-background-color: transparent; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;"));
 
-        double[] widths = {150, 200, 150, 150, 100};
+        double[] widths = {130, 180, 130, 120, 80, 80, 140};
 
+        // Username (clickable for details)
         Label usernameLabel = new Label(user.getUsername() != null ? user.getUsername() : "-");
-        usernameLabel.setTextFill(Color.WHITE);
+        usernameLabel.setTextFill(Color.web("#818CF8"));
         usernameLabel.setFont(Font.font("System", FontWeight.MEDIUM, 13));
         usernameLabel.setPrefWidth(widths[0]);
+        usernameLabel.setStyle("-fx-cursor: hand;");
+        usernameLabel.setOnMouseClicked(e -> showUserDetailsModal(user, reloadCallback));
+        usernameLabel.setOnMouseEntered(e -> usernameLabel.setUnderline(true));
+        usernameLabel.setOnMouseExited(e -> usernameLabel.setUnderline(false));
 
         Label emailLabel = new Label(user.getEmail() != null ? user.getEmail() : "-");
         emailLabel.setTextFill(Color.web("#94A3B8"));
-        emailLabel.setFont(Font.font("System", 13));
+        emailLabel.setFont(Font.font("System", 12));
         emailLabel.setPrefWidth(widths[1]);
 
         String fullName = (user.getFirstName() != null ? user.getFirstName() : "") + " " +
                          (user.getLastName() != null ? user.getLastName() : "");
         Label nameLabel = new Label(fullName.trim().isEmpty() ? "-" : fullName.trim());
         nameLabel.setTextFill(Color.web("#94A3B8"));
-        nameLabel.setFont(Font.font("System", 13));
+        nameLabel.setFont(Font.font("System", 12));
         nameLabel.setPrefWidth(widths[2]);
 
         Label companyLabel = new Label(user.getCompany() != null ? user.getCompany() : "-");
         companyLabel.setTextFill(Color.web("#94A3B8"));
-        companyLabel.setFont(Font.font("System", 13));
+        companyLabel.setFont(Font.font("System", 12));
         companyLabel.setPrefWidth(widths[3]);
 
+        // Role badge
         String roleName = user.getRole() != null && user.getRole().getName() != null
             ? user.getRole().getName().replace("ROLE_", "") : "USER";
         Label roleLabel = new Label(roleName);
-        roleLabel.setFont(Font.font("System", FontWeight.BOLD, 11));
-        roleLabel.setPadding(new Insets(4, 8, 4, 8));
+        roleLabel.setFont(Font.font("System", FontWeight.BOLD, 10));
+        roleLabel.setPadding(new Insets(3, 6, 3, 6));
         if (roleName.equals("ADMIN")) {
-            roleLabel.setStyle("-fx-background-color: #6366F120; -fx-background-radius: 4; -fx-text-fill: #818CF8;");
+            roleLabel.setStyle("-fx-background-color: #6366F130; -fx-background-radius: 4; -fx-text-fill: #818CF8;");
         } else {
-            roleLabel.setStyle("-fx-background-color: #10B98120; -fx-background-radius: 4; -fx-text-fill: #34D399;");
+            roleLabel.setStyle("-fx-background-color: #10B98130; -fx-background-radius: 4; -fx-text-fill: #34D399;");
         }
-        roleLabel.setPrefWidth(widths[4]);
+        HBox roleBox = new HBox(roleLabel);
+        roleBox.setPrefWidth(widths[4]);
 
-        row.getChildren().addAll(usernameLabel, emailLabel, nameLabel, companyLabel, roleLabel);
+        // Status badge
+        boolean isEnabled = user.isEnabled();
+        Label statusLabel = new Label(isEnabled ? "Active" : "Disabled");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 10));
+        statusLabel.setPadding(new Insets(3, 6, 3, 6));
+        if (isEnabled) {
+            statusLabel.setStyle("-fx-background-color: #10B98130; -fx-background-radius: 4; -fx-text-fill: #34D399;");
+        } else {
+            statusLabel.setStyle("-fx-background-color: #EF444430; -fx-background-radius: 4; -fx-text-fill: #F87171;");
+        }
+        HBox statusBox = new HBox(statusLabel);
+        statusBox.setPrefWidth(widths[5]);
+
+        // Action buttons
+        HBox actionsBox = new HBox(6);
+        actionsBox.setPrefWidth(widths[6]);
+        actionsBox.setAlignment(Pos.CENTER_LEFT);
+
+        // View/Edit button
+        Button editBtn = new Button();
+        editBtn.setStyle("-fx-background-color: #6366F1; -fx-background-radius: 4; -fx-padding: 4 8;");
+        FontIcon editIcon = new FontIcon("fas-edit");
+        editIcon.setIconSize(12);
+        editIcon.setIconColor(Color.WHITE);
+        editBtn.setGraphic(editIcon);
+        editBtn.setTooltip(new Tooltip("Edit User"));
+        editBtn.setOnAction(e -> showUserDetailsModal(user, reloadCallback));
+
+        // Toggle status button
+        Button statusBtn = new Button();
+        statusBtn.setStyle("-fx-background-color: " + (isEnabled ? "#F59E0B" : "#10B981") + "; -fx-background-radius: 4; -fx-padding: 4 8;");
+        FontIcon statusIcon = new FontIcon(isEnabled ? "fas-ban" : "fas-check");
+        statusIcon.setIconSize(12);
+        statusIcon.setIconColor(Color.WHITE);
+        statusBtn.setGraphic(statusIcon);
+        statusBtn.setTooltip(new Tooltip(isEnabled ? "Disable User" : "Enable User"));
+        statusBtn.setOnAction(e -> {
+            apiService.toggleUserStatus(sessionManager.getAuthorizationHeader(), user.getId(), !isEnabled)
+                .thenAccept(result -> Platform.runLater(() -> {
+                    if (result.isSuccess()) {
+                        reloadCallback.run();
+                    }
+                }));
+        });
+
+        // Delete button
+        Button deleteBtn = new Button();
+        deleteBtn.setStyle("-fx-background-color: #EF4444; -fx-background-radius: 4; -fx-padding: 4 8;");
+        FontIcon deleteIcon = new FontIcon("fas-trash");
+        deleteIcon.setIconSize(12);
+        deleteIcon.setIconColor(Color.WHITE);
+        deleteBtn.setGraphic(deleteIcon);
+        deleteBtn.setTooltip(new Tooltip("Delete User"));
+        deleteBtn.setOnAction(e -> showDeleteConfirmation(user, reloadCallback));
+
+        actionsBox.getChildren().addAll(editBtn, statusBtn, deleteBtn);
+
+        row.getChildren().addAll(usernameLabel, emailLabel, nameLabel, companyLabel, roleBox, statusBox, actionsBox);
 
         return row;
+    }
+
+    private void showDeleteConfirmation(User user, Runnable reloadCallback) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Delete User");
+        alert.setHeaderText("Delete user: " + user.getUsername());
+        alert.setContentText("Are you sure you want to delete this user? This action cannot be undone.");
+
+        alert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                apiService.deleteUser(sessionManager.getAuthorizationHeader(), user.getId())
+                    .thenAccept(result -> Platform.runLater(() -> {
+                        if (result.isSuccess()) {
+                            reloadCallback.run();
+                        }
+                    }));
+            }
+        });
+    }
+
+    private void showUserDetailsModal(User user, Runnable reloadCallback) {
+        // Create modal overlay
+        StackPane overlay = new StackPane();
+        overlay.setStyle("-fx-background-color: rgba(0,0,0,0.7);");
+
+        VBox modal = new VBox(20);
+        modal.setMaxWidth(500);
+        modal.setMaxHeight(650);
+        modal.setPadding(new Insets(30));
+        modal.setStyle("-fx-background-color: #1E293B; -fx-background-radius: 16;");
+        modal.setAlignment(Pos.TOP_CENTER);
+
+        // Header
+        HBox header = new HBox();
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label titleLabel = new Label("User Details");
+        titleLabel.setFont(Font.font("System", FontWeight.BOLD, 24));
+        titleLabel.setTextFill(Color.WHITE);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button closeBtn = new Button("✕");
+        closeBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #94A3B8; -fx-font-size: 18;");
+        closeBtn.setOnAction(e -> removeOverlay(overlay));
+
+        header.getChildren().addAll(titleLabel, spacer, closeBtn);
+
+        // User info with avatar
+        HBox userInfo = new HBox(16);
+        userInfo.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane avatar = new StackPane();
+        Circle avatarCircle = new Circle(35);
+        avatarCircle.setFill(Color.web("#6366F1"));
+        String initials = "";
+        if (user.getFirstName() != null && !user.getFirstName().isEmpty()) initials += user.getFirstName().charAt(0);
+        if (user.getLastName() != null && !user.getLastName().isEmpty()) initials += user.getLastName().charAt(0);
+        if (initials.isEmpty() && user.getUsername() != null) initials = user.getUsername().substring(0, 1).toUpperCase();
+        Label avatarLabel = new Label(initials.toUpperCase());
+        avatarLabel.setFont(Font.font("System", FontWeight.BOLD, 20));
+        avatarLabel.setTextFill(Color.WHITE);
+        avatar.getChildren().addAll(avatarCircle, avatarLabel);
+
+        VBox userNameBox = new VBox(4);
+        Label usernameLabel = new Label(user.getUsername());
+        usernameLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        usernameLabel.setTextFill(Color.WHITE);
+        Label emailLabel = new Label(user.getEmail());
+        emailLabel.setTextFill(Color.web("#94A3B8"));
+        userNameBox.getChildren().addAll(usernameLabel, emailLabel);
+
+        userInfo.getChildren().addAll(avatar, userNameBox);
+
+        // Role selector
+        HBox roleRow = new HBox(10);
+        roleRow.setAlignment(Pos.CENTER_LEFT);
+        Label roleLabel = new Label("Role:");
+        roleLabel.setTextFill(Color.web("#94A3B8"));
+        roleLabel.setPrefWidth(100);
+
+        ComboBox<String> roleCombo = new ComboBox<>();
+        roleCombo.getItems().addAll("ROLE_USER", "ROLE_ADMIN");
+        roleCombo.setValue(user.getRole() != null ? user.getRole().getName() : "ROLE_USER");
+        roleCombo.setStyle("-fx-background-color: #334155;");
+
+        Button saveRoleBtn = new Button("Update Role");
+        saveRoleBtn.setStyle("-fx-background-color: #6366F1; -fx-text-fill: white; -fx-background-radius: 6;");
+        saveRoleBtn.setOnAction(e -> {
+            apiService.changeUserRole(sessionManager.getAuthorizationHeader(), user.getId(), roleCombo.getValue())
+                .thenAccept(result -> Platform.runLater(() -> {
+                    if (result.isSuccess()) {
+                        reloadCallback.run();
+                    }
+                }));
+        });
+
+        roleRow.getChildren().addAll(roleLabel, roleCombo, saveRoleBtn);
+
+        // Editable fields
+        ScrollPane fieldsScroll = new ScrollPane();
+        fieldsScroll.setFitToWidth(true);
+        fieldsScroll.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        fieldsScroll.setPrefHeight(300);
+
+        VBox fieldsBox = new VBox(12);
+
+        VBox firstNameBox = createModalField("First Name", user.getFirstName());
+        VBox lastNameBox = createModalField("Last Name", user.getLastName());
+        VBox emailBox = createModalField("Email", user.getEmail());
+        VBox companyBox = createModalField("Company", user.getCompany());
+        VBox jobBox = createModalField("Job Position", user.getJobPosition());
+        VBox cityBox = createModalField("City", user.getCity());
+        VBox countryBox = createModalField("Country", user.getCountry());
+        VBox mobileBox = createModalField("Mobile", user.getMobile());
+
+        fieldsBox.getChildren().addAll(firstNameBox, lastNameBox, emailBox, companyBox, jobBox, cityBox, countryBox, mobileBox);
+        fieldsScroll.setContent(fieldsBox);
+
+        // Action buttons
+        HBox actionButtons = new HBox(12);
+        actionButtons.setAlignment(Pos.CENTER_RIGHT);
+
+        Button saveBtn = new Button("Save Changes");
+        saveBtn.setStyle("-fx-background-color: #10B981; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 24;");
+        saveBtn.setFont(Font.font("System", FontWeight.BOLD, 13));
+
+        Button deleteBtn = new Button("Delete User");
+        deleteBtn.setStyle("-fx-background-color: #EF4444; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 24;");
+
+        saveBtn.setOnAction(e -> {
+            User updatedUser = new User();
+            updatedUser.setFirstName(((TextField) firstNameBox.getChildren().get(1)).getText());
+            updatedUser.setLastName(((TextField) lastNameBox.getChildren().get(1)).getText());
+            updatedUser.setEmail(((TextField) emailBox.getChildren().get(1)).getText());
+            updatedUser.setCompany(((TextField) companyBox.getChildren().get(1)).getText());
+            updatedUser.setJobPosition(((TextField) jobBox.getChildren().get(1)).getText());
+            updatedUser.setCity(((TextField) cityBox.getChildren().get(1)).getText());
+            updatedUser.setCountry(((TextField) countryBox.getChildren().get(1)).getText());
+            updatedUser.setMobile(((TextField) mobileBox.getChildren().get(1)).getText());
+
+            apiService.updateUserById(sessionManager.getAuthorizationHeader(), user.getId(), updatedUser)
+                .thenAccept(result -> Platform.runLater(() -> {
+                    if (result.isSuccess()) {
+                        removeOverlay(overlay);
+                        reloadCallback.run();
+                    }
+                }));
+        });
+
+        deleteBtn.setOnAction(e -> {
+            removeOverlay(overlay);
+            showDeleteConfirmation(user, reloadCallback);
+        });
+
+        actionButtons.getChildren().addAll(deleteBtn, saveBtn);
+
+        modal.getChildren().addAll(header, userInfo, roleRow, fieldsScroll, actionButtons);
+
+        overlay.getChildren().add(modal);
+        overlay.setOnMouseClicked(e -> {
+            if (e.getTarget() == overlay) {
+                contentArea.getChildren().remove(overlay);
+            }
+        });
+
+        // Add overlay directly to contentArea (which is a StackPane)
+        contentArea.getChildren().add(overlay);
+        AnimationUtils.fadeIn(overlay, 200);
+    }
+
+    private void removeOverlay(StackPane overlay) {
+        contentArea.getChildren().remove(overlay);
+    }
+
+    private VBox createModalField(String label, String value) {
+        VBox container = new VBox(4);
+        Label lbl = new Label(label);
+        lbl.setTextFill(Color.web("#94A3B8"));
+        lbl.setFont(Font.font("System", 12));
+
+        TextField field = new TextField(value != null ? value : "");
+        field.setStyle("-fx-background-color: #0F172A; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 10;");
+
+        container.getChildren().addAll(lbl, field);
+        return container;
     }
 }

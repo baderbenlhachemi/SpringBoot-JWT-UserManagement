@@ -348,4 +348,118 @@ public class UserController {
 
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Get User by ID - Admin only
+     */
+    @GetMapping("/users/id/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getUserById(@PathVariable Long id) throws UserNotFoundException {
+        User user = userService.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+        return ResponseEntity.ok(user);
+    }
+
+    /**
+     * Delete User - Admin only
+     */
+    @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) throws UserNotFoundException {
+        User user = userService.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+
+        userService.deleteById(id);
+        return ResponseEntity.ok(new MessageResponse("User '" + user.getUsername() + "' deleted successfully"));
+    }
+
+    /**
+     * Update User - Admin only (can edit any user)
+     */
+    @PutMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody ProfileUpdateRequest request) throws UserNotFoundException {
+        User user = userService.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+
+        // Check if new email is already in use by another user
+        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
+            if (userService.existsByEmail(request.getEmail())) {
+                return ResponseEntity.badRequest()
+                        .body(new MessageResponse("Error: Email is already in use!"));
+            }
+            user.setEmail(request.getEmail());
+        }
+
+        // Update fields if provided
+        if (request.getFirstName() != null) user.setFirstName(request.getFirstName());
+        if (request.getLastName() != null) user.setLastName(request.getLastName());
+        if (request.getBirthDate() != null) user.setBirthDate(request.getBirthDate());
+        if (request.getCity() != null) user.setCity(request.getCity());
+        if (request.getCountry() != null) user.setCountry(request.getCountry());
+        if (request.getCompany() != null) user.setCompany(request.getCompany());
+        if (request.getJobPosition() != null) user.setJobPosition(request.getJobPosition());
+        if (request.getMobile() != null) user.setMobile(request.getMobile());
+        if (request.getAvatar() != null) user.setAvatar(request.getAvatar());
+
+        userService.save(user);
+        return ResponseEntity.ok(user);
+    }
+
+    /**
+     * Change User Role - Admin only
+     */
+    @PatchMapping("/users/{id}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> changeUserRole(@PathVariable Long id, @RequestParam String role) throws UserNotFoundException {
+        User user = userService.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+
+        ERole newRole;
+        try {
+            newRole = ERole.valueOf(role.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("Error: Invalid role. Use ROLE_USER or ROLE_ADMIN"));
+        }
+
+        Role roleEntity = roleService.findByName(newRole)
+                .orElseGet(() -> roleService.save(new Role(newRole)));
+
+        user.setRole(roleEntity);
+        userService.save(user);
+
+        return ResponseEntity.ok(new MessageResponse("User role updated to " + newRole.name()));
+    }
+
+    /**
+     * Toggle User Status (Enable/Disable) - Admin only
+     */
+    @PatchMapping("/users/{id}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> toggleUserStatus(@PathVariable Long id, @RequestParam boolean enabled) throws UserNotFoundException {
+        User user = userService.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+
+        user.setEnabled(enabled);
+        userService.save(user);
+
+        String status = enabled ? "enabled" : "disabled";
+        return ResponseEntity.ok(new MessageResponse("User '" + user.getUsername() + "' has been " + status));
+    }
+
+    /**
+     * Get User Stats - Admin only
+     */
+    @GetMapping("/stats/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getUserStats() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalUsers", userService.count());
+        stats.put("totalAdmins", userService.countByRole(ERole.ROLE_ADMIN));
+        stats.put("totalRegularUsers", userService.countByRole(ERole.ROLE_USER));
+        stats.put("newUsersToday", userService.countNewUsersToday());
+
+        return ResponseEntity.ok(stats);
+    }
 }

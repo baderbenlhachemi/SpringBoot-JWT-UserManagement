@@ -1,5 +1,6 @@
 package com.cirestechnologies.demo.service;
 
+import com.cirestechnologies.demo.model.ERole;
 import com.cirestechnologies.demo.model.User;
 import com.cirestechnologies.demo.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,6 +8,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Optional;
 
 @Service
@@ -43,6 +46,10 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    public void deleteById(Long id) {
+        userRepository.deleteById(id);
+    }
+
     public Page<User> findAll(Pageable pageable) {
         return userRepository.findAll(pageable);
     }
@@ -53,5 +60,18 @@ public class UserService {
 
     public long count() {
         return userRepository.count();
+    }
+
+    public long countByRole(ERole roleName) {
+        return userRepository.countByRoleName(roleName);
+    }
+
+    public long countNewUsersToday() {
+        Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return userRepository.countNewUsersSince(cal.getTime());
     }
 }

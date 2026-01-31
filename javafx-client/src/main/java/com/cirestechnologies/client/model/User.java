@@ -20,6 +20,8 @@ public class User {
     private String email;
     private String password;
     private Role role;
+    private boolean enabled = true;
+    private Date createdAt;
 
     public User() {
     }
@@ -146,6 +148,22 @@ public class User {
 
     public boolean isAdmin() {
         return role != null && role.getName() != null && role.getName().equals("ROLE_ADMIN");
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public Date getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Date createdAt) {
+        this.createdAt = createdAt;
     }
 
     @Override

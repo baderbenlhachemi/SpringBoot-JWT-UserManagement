@@ -1,8 +1,6 @@
 package com.cirestechnologies.client.service;
 
-import com.cirestechnologies.client.model.AuthResponse;
-import com.cirestechnologies.client.model.BatchImportResult;
-import com.cirestechnologies.client.model.User;
+import com.cirestechnologies.client.model.*;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import okhttp3.*;
@@ -233,8 +231,131 @@ public class ApiService {
         }
     }
 
+    // ==================== NEW API METHODS ====================
+
     /**
-     * Generic API result wrapper
+     * Register a new user
+     */
+    public CompletableFuture<ApiResult<String>> register(SignupRequest signupRequest) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String jsonBody = gson.toJson(signupRequest);
+                RequestBody body = RequestBody.create(jsonBody, JSON);
+
+                Request request = new Request.Builder()
+                        .url(BASE_URL + "/auth/register")
+                        .post(body)
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        return ApiResult.success("Registration successful!");
+                    } else {
+                        return ApiResult.error("Registration failed: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Change password for current user
+     */
+    public CompletableFuture<ApiResult<String>> changePassword(String token, PasswordChangeRequest request) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String jsonBody = gson.toJson(request);
+                RequestBody body = RequestBody.create(jsonBody, JSON);
+
+                Request httpRequest = new Request.Builder()
+                        .url(BASE_URL + "/users/me/password")
+                        .header("Authorization", token)
+                        .put(body)
+                        .build();
+
+                try (Response response = client.newCall(httpRequest).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        return ApiResult.success("Password changed successfully!");
+                    } else {
+                        return ApiResult.error("Failed to change password: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Update profile for current user
+     */
+    public CompletableFuture<ApiResult<User>> updateProfile(String token, User updatedUser) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String jsonBody = gson.toJson(updatedUser);
+                RequestBody body = RequestBody.create(jsonBody, JSON);
+
+                Request request = new Request.Builder()
+                        .url(BASE_URL + "/users/me")
+                        .header("Authorization", token)
+                        .put(body)
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        User user = gson.fromJson(responseBody, User.class);
+                        return ApiResult.success(user);
+                    } else {
+                        return ApiResult.error("Failed to update profile: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Get all users (Admin only) with pagination
+     */
+    public CompletableFuture<ApiResult<UserListResponse>> getAllUsers(String token, int page, int size, String sortBy, String sortDir) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                String url = String.format("%s/users?page=%d&size=%d&sortBy=%s&sortDir=%s",
+                        BASE_URL, page, size, sortBy, sortDir);
+
+                Request request = new Request.Builder()
+                        .url(url)
+                        .header("Authorization", token)
+                        .get()
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    String responseBody = response.body() != null ? response.body().string() : "";
+
+                    if (response.isSuccessful()) {
+                        UserListResponse userList = gson.fromJson(responseBody, UserListResponse.class);
+                        return ApiResult.success(userList);
+                    } else {
+                        return ApiResult.error("Failed to get users: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Inner class to hold API result (success or error)
      */
     public static class ApiResult<T> {
         private final T data;

@@ -7,7 +7,11 @@ import com.cirestechnologies.demo.model.ERole;
 import com.cirestechnologies.demo.model.Role;
 import com.cirestechnologies.demo.model.User;
 import com.cirestechnologies.demo.payload.request.LoginRequest;
+import com.cirestechnologies.demo.payload.request.PasswordChangeRequest;
+import com.cirestechnologies.demo.payload.request.ProfileUpdateRequest;
+import com.cirestechnologies.demo.payload.request.SignupRequest;
 import com.cirestechnologies.demo.payload.response.JwtResponse;
+import com.cirestechnologies.demo.payload.response.MessageResponse;
 import com.cirestechnologies.demo.security.jwt.JwtUtils;
 import com.cirestechnologies.demo.security.services.UserDetailsImpl;
 import com.cirestechnologies.demo.service.FakeDataService;
@@ -18,6 +22,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,6 +34,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,10 +42,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -56,6 +62,9 @@ public class UserController {
 
     @Autowired
     private FakeDataService fakeDataService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @GetMapping("/users/generate/{count}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -192,5 +201,144 @@ public class UserController {
         UserDetailsImpl userDetailsToReturn = UserDetailsImpl.build(user);
 
         return ResponseEntity.ok(userDetailsToReturn);
+    }
+
+    // ==================== NEW ENDPOINTS ====================
+
+    /**
+     * User Registration - Allow self-signup
+     */
+    @PostMapping("/auth/register")
+    public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
+        // Check if username is already taken
+        if (userService.existsByUsername(signUpRequest.getUsername())) {
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("Error: Username is already taken!"));
+        }
+
+        // Check if email is already in use
+        if (userService.existsByEmail(signUpRequest.getEmail())) {
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("Error: Email is already in use!"));
+        }
+
+        // Get the default USER role
+        Role userRole = roleService.findByName(ERole.ROLE_USER)
+                .orElseGet(() -> roleService.save(new Role(ERole.ROLE_USER)));
+
+        // Create new user
+        User user = new User();
+        user.setUsername(signUpRequest.getUsername());
+        user.setEmail(signUpRequest.getEmail());
+        user.setPassword(passwordEncoder.encode(signUpRequest.getPassword()));
+        user.setFirstName(signUpRequest.getFirstName());
+        user.setLastName(signUpRequest.getLastName());
+        user.setRole(userRole);
+
+        // Set default values for required fields
+        user.setBirthDate(new Date());
+        user.setCity("Not specified");
+        user.setCountry("Not specified");
+        user.setCompany("Not specified");
+        user.setJobPosition("Not specified");
+        user.setMobile("+212 000000000");
+        user.setAvatar("https://ui-avatars.com/api/?name=" + signUpRequest.getFirstName() + "+" + signUpRequest.getLastName() + "&background=6366F1&color=fff");
+
+        userService.save(user);
+
+        return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+    }
+
+    /**
+     * Change Password - Authenticated users can change their password
+     */
+    @PutMapping("/users/me/password")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<?> changePassword(@Valid @RequestBody PasswordChangeRequest request) throws UserNotFoundException, InvalidPasswordException {
+        // Get current authenticated user
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+
+        // Find user in database
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new UserNotFoundException("User not found!"));
+
+        // Verify current password
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new InvalidPasswordException("Current password is incorrect!");
+        }
+
+        // Update password
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userService.save(user);
+
+        return ResponseEntity.ok(new MessageResponse("Password changed successfully!"));
+    }
+
+    /**
+     * Update Profile - Authenticated users can update their profile
+     */
+    @PutMapping("/users/me")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    public ResponseEntity<?> updateProfile(@Valid @RequestBody ProfileUpdateRequest request) throws UserNotFoundException {
+        // Get current authenticated user
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+
+        // Find user in database
+        User user = userService.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new UserNotFoundException("User not found!"));
+
+        // Check if new email is already in use by another user
+        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
+            if (userService.existsByEmail(request.getEmail())) {
+                return ResponseEntity.badRequest()
+                        .body(new MessageResponse("Error: Email is already in use!"));
+            }
+            user.setEmail(request.getEmail());
+        }
+
+        // Update fields if provided
+        if (request.getFirstName() != null) user.setFirstName(request.getFirstName());
+        if (request.getLastName() != null) user.setLastName(request.getLastName());
+        if (request.getBirthDate() != null) user.setBirthDate(request.getBirthDate());
+        if (request.getCity() != null) user.setCity(request.getCity());
+        if (request.getCountry() != null) user.setCountry(request.getCountry());
+        if (request.getCompany() != null) user.setCompany(request.getCompany());
+        if (request.getJobPosition() != null) user.setJobPosition(request.getJobPosition());
+        if (request.getMobile() != null) user.setMobile(request.getMobile());
+        if (request.getAvatar() != null) user.setAvatar(request.getAvatar());
+
+        userService.save(user);
+
+        return ResponseEntity.ok(user);
+    }
+
+    /**
+     * List All Users - Admin only, with pagination
+     */
+    @GetMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getAllUsers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "username") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir
+    ) {
+        Sort sort = sortDir.equalsIgnoreCase("desc")
+                ? Sort.by(sortBy).descending()
+                : Sort.by(sortBy).ascending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<User> usersPage = userService.findAll(pageable);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("users", usersPage.getContent());
+        response.put("currentPage", usersPage.getNumber());
+        response.put("totalItems", usersPage.getTotalElements());
+        response.put("totalPages", usersPage.getTotalPages());
+        response.put("size", usersPage.getSize());
+
+        return ResponseEntity.ok(response);
     }
 }

@@ -50,7 +50,6 @@ public class User {
     private String jobPosition;
 
     @NotBlank
-    @Pattern(regexp = "(\\+212|0)([ \\-_/]*)(\\d[ \\-_/]*){9}")
     private String mobile;
 
     @NotBlank
@@ -62,7 +61,7 @@ public class User {
     private String email;
 
     @NotBlank
-    @Size(min = 6, max = 10)
+    @Size(min = 6, max = 120)
     private String password;
 
     @ManyToOne(fetch = FetchType.LAZY)

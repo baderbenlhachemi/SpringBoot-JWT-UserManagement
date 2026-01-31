@@ -3,6 +3,8 @@ package com.cirestechnologies.demo.service;
 import com.cirestechnologies.demo.model.User;
 import com.cirestechnologies.demo.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -25,6 +27,10 @@ public class UserService {
         return userRepository.findByUsernameOrEmail(username, email);
     }
 
+    public Optional<User> findById(Long id) {
+        return userRepository.findById(id);
+    }
+
     public Boolean existsByUsername(String username) {
         return userRepository.existsByUsername(username);
     }
@@ -37,4 +43,11 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    public Page<User> findAll(Pageable pageable) {
+        return userRepository.findAll(pageable);
+    }
+
+    public long count() {
+        return userRepository.count();
+    }
 }

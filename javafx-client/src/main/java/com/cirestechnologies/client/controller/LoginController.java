@@ -1,6 +1,7 @@
 package com.cirestechnologies.client.controller;
 
 import com.cirestechnologies.client.model.AuthResponse;
+import com.cirestechnologies.client.model.SignupRequest;
 import com.cirestechnologies.client.service.ApiService;
 import com.cirestechnologies.client.service.SessionManager;
 import com.cirestechnologies.client.util.AnimationUtils;
@@ -256,6 +257,23 @@ public class LoginController {
         footerLabel.setFont(Font.font("System", 11));
         footerLabel.setTextFill(Color.web("#64748B"));
 
+        // Register link
+        HBox registerBox = new HBox(5);
+        registerBox.setAlignment(Pos.CENTER);
+        Label noAccountLabel = new Label("Don't have an account?");
+        noAccountLabel.setFont(Font.font("System", 12));
+        noAccountLabel.setTextFill(Color.web("#94A3B8"));
+
+        Label registerLink = new Label("Register");
+        registerLink.setFont(Font.font("System", FontWeight.BOLD, 12));
+        registerLink.setTextFill(Color.web("#818CF8"));
+        registerLink.setStyle("-fx-cursor: hand;");
+        registerLink.setOnMouseEntered(e -> registerLink.setTextFill(Color.web("#A5B4FC")));
+        registerLink.setOnMouseExited(e -> registerLink.setTextFill(Color.web("#818CF8")));
+        registerLink.setOnMouseClicked(e -> showRegisterForm());
+
+        registerBox.getChildren().addAll(noAccountLabel, registerLink);
+
         loginCard.getChildren().addAll(
             welcomeBox,
             usernameBox,
@@ -263,6 +281,7 @@ public class LoginController {
             errorLabel,
             loadingSpinner,
             loginButton,
+            registerBox,
             footerLabel
         );
 
@@ -389,5 +408,262 @@ public class LoginController {
     private void hideError() {
         errorLabel.setVisible(false);
         errorLabel.setManaged(false);
+    }
+
+    private void showRegisterForm() {
+        // Clear the login card and show registration form
+        loginCard.getChildren().clear();
+
+        // Title
+        Label titleLabel = new Label("Create Account");
+        titleLabel.setFont(Font.font("System", FontWeight.BOLD, 28));
+        titleLabel.setTextFill(Color.WHITE);
+
+        Label subtitleLabel = new Label("Register for a new account");
+        subtitleLabel.setFont(Font.font("System", 14));
+        subtitleLabel.setTextFill(Color.web("#94A3B8"));
+
+        VBox titleBox = new VBox(8);
+        titleBox.setAlignment(Pos.CENTER);
+        titleBox.getChildren().addAll(titleLabel, subtitleLabel);
+
+        // First Name field
+        VBox firstNameBox = createInputField("First Name", "fas-user", false);
+        TextField firstNameField = (TextField) firstNameBox.lookup(".styled-text-field");
+        firstNameField.setPromptText("Enter your first name");
+
+        // Last Name field
+        VBox lastNameBox = createInputField("Last Name", "fas-user", false);
+        TextField lastNameField = (TextField) lastNameBox.lookup(".styled-text-field");
+        lastNameField.setPromptText("Enter your last name");
+
+        // Username field
+        VBox regUsernameBox = createInputField("Username", "fas-at", false);
+        TextField regUsernameField = (TextField) regUsernameBox.lookup(".styled-text-field");
+        regUsernameField.setPromptText("Choose a username");
+
+        // Email field
+        VBox emailBox = createInputField("Email", "fas-envelope", false);
+        TextField emailField = (TextField) emailBox.lookup(".styled-text-field");
+        emailField.setPromptText("Enter your email");
+
+        // Password field
+        VBox regPasswordBox = createInputField("Password", "fas-lock", true);
+        PasswordField regPasswordField = (PasswordField) regPasswordBox.lookup(".styled-text-field");
+        regPasswordField.setPromptText("Create a password (min 6 characters)");
+
+        // Error/Success label
+        Label regMessageLabel = new Label();
+        regMessageLabel.setFont(Font.font("System", 13));
+        regMessageLabel.setWrapText(true);
+        regMessageLabel.setMaxWidth(300);
+        regMessageLabel.setVisible(false);
+        regMessageLabel.setManaged(false);
+
+        // Register button
+        Button registerButton = new Button("Create Account");
+        registerButton.setMaxWidth(Double.MAX_VALUE);
+        registerButton.setPrefHeight(50);
+        registerButton.setFont(Font.font("System", FontWeight.BOLD, 15));
+        registerButton.setStyle("-fx-background-color: linear-gradient(to right, #10B981, #059669); " +
+                "-fx-text-fill: white; -fx-background-radius: 12; -fx-cursor: hand;");
+
+        FontIcon regIcon = new FontIcon("fas-user-plus");
+        regIcon.setIconSize(16);
+        regIcon.setIconColor(Color.WHITE);
+        registerButton.setGraphic(regIcon);
+
+        ProgressIndicator regSpinner = new ProgressIndicator();
+        regSpinner.setMaxSize(24, 24);
+
+        registerButton.setOnAction(e -> {
+            // Validate fields
+            String firstName = firstNameField.getText().trim();
+            String lastName = lastNameField.getText().trim();
+            String username = regUsernameField.getText().trim();
+            String email = emailField.getText().trim();
+            String password = regPasswordField.getText();
+
+            if (firstName.isEmpty() || lastName.isEmpty() || username.isEmpty() || email.isEmpty() || password.isEmpty()) {
+                regMessageLabel.setText("Please fill in all fields");
+                regMessageLabel.setTextFill(Color.web("#EF4444"));
+                regMessageLabel.setVisible(true);
+                regMessageLabel.setManaged(true);
+                return;
+            }
+
+            if (password.length() < 6) {
+                regMessageLabel.setText("Password must be at least 6 characters");
+                regMessageLabel.setTextFill(Color.web("#EF4444"));
+                regMessageLabel.setVisible(true);
+                regMessageLabel.setManaged(true);
+                return;
+            }
+
+            if (!email.contains("@")) {
+                regMessageLabel.setText("Please enter a valid email address");
+                regMessageLabel.setTextFill(Color.web("#EF4444"));
+                regMessageLabel.setVisible(true);
+                regMessageLabel.setManaged(true);
+                return;
+            }
+
+            // Show loading
+            registerButton.setDisable(true);
+            registerButton.setText("Creating Account...");
+            registerButton.setGraphic(regSpinner);
+
+            SignupRequest request = new SignupRequest(username, email, password, firstName, lastName);
+            apiService.register(request)
+                .thenAccept(result -> Platform.runLater(() -> {
+                    registerButton.setDisable(false);
+                    registerButton.setText("Create Account");
+                    registerButton.setGraphic(regIcon);
+
+                    if (result.isSuccess()) {
+                        regMessageLabel.setText("Registration successful! You can now login.");
+                        regMessageLabel.setTextFill(Color.web("#10B981"));
+                        regMessageLabel.setVisible(true);
+                        regMessageLabel.setManaged(true);
+
+                        // Clear fields
+                        firstNameField.clear();
+                        lastNameField.clear();
+                        regUsernameField.clear();
+                        emailField.clear();
+                        regPasswordField.clear();
+                    } else {
+                        regMessageLabel.setText(result.getError());
+                        regMessageLabel.setTextFill(Color.web("#EF4444"));
+                        regMessageLabel.setVisible(true);
+                        regMessageLabel.setManaged(true);
+                    }
+                }));
+        });
+
+        // Back to login link
+        HBox backBox = new HBox(5);
+        backBox.setAlignment(Pos.CENTER);
+        Label haveAccountLabel = new Label("Already have an account?");
+        haveAccountLabel.setFont(Font.font("System", 12));
+        haveAccountLabel.setTextFill(Color.web("#94A3B8"));
+
+        Label loginLink = new Label("Sign In");
+        loginLink.setFont(Font.font("System", FontWeight.BOLD, 12));
+        loginLink.setTextFill(Color.web("#818CF8"));
+        loginLink.setStyle("-fx-cursor: hand;");
+        loginLink.setOnMouseEntered(ev -> loginLink.setTextFill(Color.web("#A5B4FC")));
+        loginLink.setOnMouseExited(ev -> loginLink.setTextFill(Color.web("#818CF8")));
+        loginLink.setOnMouseClicked(ev -> showLoginForm());
+
+        backBox.getChildren().addAll(haveAccountLabel, loginLink);
+
+        // Add all to card
+        loginCard.getChildren().addAll(
+            titleBox,
+            firstNameBox,
+            lastNameBox,
+            regUsernameBox,
+            emailBox,
+            regPasswordBox,
+            regMessageLabel,
+            registerButton,
+            backBox
+        );
+
+        AnimationUtils.fadeIn(loginCard, 300);
+    }
+
+    private void showLoginForm() {
+        // Rebuild the login form
+        loginCard.getChildren().clear();
+
+        // Welcome text
+        Label welcomeLabel = new Label("Welcome Back");
+        welcomeLabel.setFont(Font.font("System", FontWeight.BOLD, 28));
+        welcomeLabel.setTextFill(Color.WHITE);
+
+        Label signInLabel = new Label("Sign in to your account");
+        signInLabel.setFont(Font.font("System", 14));
+        signInLabel.setTextFill(Color.web("#94A3B8"));
+
+        VBox welcomeBox = new VBox(8);
+        welcomeBox.setAlignment(Pos.CENTER);
+        welcomeBox.getChildren().addAll(welcomeLabel, signInLabel);
+
+        // Username field
+        VBox usernameBox = createInputField("Username", "fas-user", false);
+        usernameField = (TextField) usernameBox.lookup(".styled-text-field");
+
+        // Password field
+        VBox passwordBox = createInputField("Password", "fas-lock", true);
+        passwordField = (PasswordField) passwordBox.lookup(".styled-text-field");
+
+        // Error label
+        errorLabel = new Label();
+        errorLabel.setTextFill(Color.web("#EF4444"));
+        errorLabel.setFont(Font.font("System", 13));
+        errorLabel.setVisible(false);
+        errorLabel.setManaged(false);
+        errorLabel.setWrapText(true);
+        errorLabel.setMaxWidth(300);
+
+        // Loading spinner
+        loadingSpinner = new ProgressIndicator();
+        loadingSpinner.setMaxSize(24, 24);
+        loadingSpinner.setVisible(false);
+        loadingSpinner.setManaged(false);
+
+        // Login button
+        loginButton = new Button("Sign In");
+        loginButton.setMaxWidth(Double.MAX_VALUE);
+        loginButton.setPrefHeight(50);
+        loginButton.setFont(Font.font("System", FontWeight.BOLD, 15));
+        loginButton.setStyle("-fx-background-color: linear-gradient(to right, #6366F1, #8B5CF6); " +
+                "-fx-text-fill: white; -fx-background-radius: 12; -fx-cursor: hand;");
+
+        FontIcon loginIcon = new FontIcon("fas-sign-in-alt");
+        loginIcon.setIconSize(16);
+        loginIcon.setIconColor(Color.WHITE);
+        loginButton.setGraphic(loginIcon);
+
+        loginButton.setOnAction(e -> handleLogin());
+        passwordField.setOnAction(e -> handleLogin());
+        usernameField.setOnAction(e -> passwordField.requestFocus());
+
+        // Footer
+        Label footerLabel = new Label("Powered by Spring Security & JWT");
+        footerLabel.setFont(Font.font("System", 11));
+        footerLabel.setTextFill(Color.web("#64748B"));
+
+        // Register link
+        HBox registerBox = new HBox(5);
+        registerBox.setAlignment(Pos.CENTER);
+        Label noAccountLabel = new Label("Don't have an account?");
+        noAccountLabel.setFont(Font.font("System", 12));
+        noAccountLabel.setTextFill(Color.web("#94A3B8"));
+
+        Label registerLink = new Label("Register");
+        registerLink.setFont(Font.font("System", FontWeight.BOLD, 12));
+        registerLink.setTextFill(Color.web("#818CF8"));
+        registerLink.setStyle("-fx-cursor: hand;");
+        registerLink.setOnMouseEntered(e -> registerLink.setTextFill(Color.web("#A5B4FC")));
+        registerLink.setOnMouseExited(e -> registerLink.setTextFill(Color.web("#818CF8")));
+        registerLink.setOnMouseClicked(e -> showRegisterForm());
+
+        registerBox.getChildren().addAll(noAccountLabel, registerLink);
+
+        loginCard.getChildren().addAll(
+            welcomeBox,
+            usernameBox,
+            passwordBox,
+            errorLabel,
+            loadingSpinner,
+            loginButton,
+            registerBox,
+            footerLabel
+        );
+
+        AnimationUtils.fadeIn(loginCard, 300);
     }
 }

@@ -1,7 +1,6 @@
 package com.cirestechnologies.client.controller;
 
-import com.cirestechnologies.client.model.BatchImportResult;
-import com.cirestechnologies.client.model.User;
+import com.cirestechnologies.client.model.*;
 import com.cirestechnologies.client.service.ApiService;
 import com.cirestechnologies.client.service.SessionManager;
 import com.cirestechnologies.client.util.AnimationUtils;
@@ -42,6 +41,8 @@ public class DashboardController {
     private Button navGenerate;
     private Button navImport;
     private Button navLookup;
+    private Button navSettings;
+    private Button navUserList;
 
     private final ApiService apiService = ApiService.getInstance();
     private final SessionManager sessionManager = SessionManager.getInstance();
@@ -122,12 +123,14 @@ public class DashboardController {
 
         navDashboard = createNavButton("Dashboard", "fas-th-large", true);
         navProfile = createNavButton("My Profile", "fas-user", false);
+        navSettings = createNavButton("Settings", "fas-cog", false);
 
         navDashboard.setOnAction(e -> { setActiveNav(navDashboard); showDashboardContent(); });
         navProfile.setOnAction(e -> { setActiveNav(navProfile); showProfileContent(); });
+        navSettings.setOnAction(e -> { setActiveNav(navSettings); showSettingsContent(); });
 
         VBox navSection = new VBox(4);
-        navSection.getChildren().addAll(navLabel, navDashboard, navProfile);
+        navSection.getChildren().addAll(navLabel, navDashboard, navProfile, navSettings);
 
         // Admin section (only visible to admins)
         VBox adminSection = new VBox(4);
@@ -141,12 +144,14 @@ public class DashboardController {
             navGenerate = createNavButton("Generate Users", "fas-users-cog", false);
             navImport = createNavButton("Import Users", "fas-file-import", false);
             navLookup = createNavButton("User Lookup", "fas-search", false);
+            navUserList = createNavButton("All Users", "fas-users", false);
 
             navGenerate.setOnAction(e -> { setActiveNav(navGenerate); showGenerateContent(); });
             navImport.setOnAction(e -> { setActiveNav(navImport); showImportContent(); });
             navLookup.setOnAction(e -> { setActiveNav(navLookup); showLookupContent(); });
+            navUserList.setOnAction(e -> { setActiveNav(navUserList); showUserListContent(); });
 
-            adminSection.getChildren().addAll(adminLabel, navGenerate, navImport, navLookup);
+            adminSection.getChildren().addAll(adminLabel, navGenerate, navImport, navUserList, navLookup);
         }
 
         // Spacer
@@ -561,11 +566,192 @@ public class DashboardController {
 
         profileCard.getChildren().addAll(avatarSection, infoGrid);
 
-        profileContent.getChildren().addAll(headerLabel, profileCard);
+        // Edit Profile Section
+        VBox editSection = new VBox(20);
+        editSection.setPadding(new Insets(32));
+        editSection.setStyle("-fx-background-color: #1E293B; -fx-background-radius: 16;");
+
+        HBox editHeader = new HBox();
+        editHeader.setAlignment(Pos.CENTER_LEFT);
+
+        Label editLabel = new Label("Edit Profile");
+        editLabel.setFont(Font.font("System", FontWeight.BOLD, 20));
+        editLabel.setTextFill(Color.WHITE);
+
+        Region editSpacer = new Region();
+        HBox.setHgrow(editSpacer, Priority.ALWAYS);
+
+        Button toggleEditButton = new Button("Edit");
+        toggleEditButton.setStyle("-fx-background-color: #6366F1; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 20;");
+        FontIcon editIcon = new FontIcon("fas-edit");
+        editIcon.setIconSize(14);
+        editIcon.setIconColor(Color.WHITE);
+        toggleEditButton.setGraphic(editIcon);
+
+        editHeader.getChildren().addAll(editLabel, editSpacer, toggleEditButton);
+
+        // Edit form container (initially hidden)
+        VBox editFormContainer = new VBox(16);
+        editFormContainer.setVisible(false);
+        editFormContainer.setManaged(false);
+
+        // Build the edit form fields
+        HBox row1 = new HBox(20);
+        VBox firstNameBox = createProfileInputField("First Name", currentUser.getFirstName());
+        TextField firstNameField = (TextField) firstNameBox.lookup(".profile-edit-field");
+        VBox lastNameBox = createProfileInputField("Last Name", currentUser.getLastName());
+        TextField lastNameField = (TextField) lastNameBox.lookup(".profile-edit-field");
+        HBox.setHgrow(firstNameBox, Priority.ALWAYS);
+        HBox.setHgrow(lastNameBox, Priority.ALWAYS);
+        row1.getChildren().addAll(firstNameBox, lastNameBox);
+
+        HBox row2 = new HBox(20);
+        VBox emailBox = createProfileInputField("Email", currentUser.getEmail());
+        TextField emailField = (TextField) emailBox.lookup(".profile-edit-field");
+        VBox mobileBox = createProfileInputField("Mobile", currentUser.getMobile());
+        TextField mobileField = (TextField) mobileBox.lookup(".profile-edit-field");
+        HBox.setHgrow(emailBox, Priority.ALWAYS);
+        HBox.setHgrow(mobileBox, Priority.ALWAYS);
+        row2.getChildren().addAll(emailBox, mobileBox);
+
+        HBox row3 = new HBox(20);
+        VBox companyBox = createProfileInputField("Company", currentUser.getCompany());
+        TextField companyField = (TextField) companyBox.lookup(".profile-edit-field");
+        VBox jobBox = createProfileInputField("Job Position", currentUser.getJobPosition());
+        TextField jobField = (TextField) jobBox.lookup(".profile-edit-field");
+        HBox.setHgrow(companyBox, Priority.ALWAYS);
+        HBox.setHgrow(jobBox, Priority.ALWAYS);
+        row3.getChildren().addAll(companyBox, jobBox);
+
+        HBox row4 = new HBox(20);
+        VBox cityBox = createProfileInputField("City", currentUser.getCity());
+        TextField cityField = (TextField) cityBox.lookup(".profile-edit-field");
+        VBox countryBox = createProfileInputField("Country", currentUser.getCountry());
+        TextField countryField = (TextField) countryBox.lookup(".profile-edit-field");
+        HBox.setHgrow(cityBox, Priority.ALWAYS);
+        HBox.setHgrow(countryBox, Priority.ALWAYS);
+        row4.getChildren().addAll(cityBox, countryBox);
+
+        // Message label
+        Label messageLabel = new Label();
+        messageLabel.setFont(Font.font("System", 13));
+        messageLabel.setVisible(false);
+        messageLabel.setManaged(false);
+
+        // Save button
+        HBox buttonBox = new HBox(10);
+        buttonBox.setAlignment(Pos.CENTER_LEFT);
+
+        Button saveButton = new Button("Save Changes");
+        saveButton.setStyle("-fx-background-color: linear-gradient(to right, #10B981, #059669); " +
+                "-fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 24;");
+        saveButton.setFont(Font.font("System", FontWeight.BOLD, 13));
+        FontIcon saveIcon = new FontIcon("fas-save");
+        saveIcon.setIconSize(14);
+        saveIcon.setIconColor(Color.WHITE);
+        saveButton.setGraphic(saveIcon);
+
+        Button cancelButton = new Button("Cancel");
+        cancelButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 24;");
+
+        buttonBox.getChildren().addAll(saveButton, cancelButton);
+
+        editFormContainer.getChildren().addAll(row1, row2, row3, row4, messageLabel, buttonBox);
+
+        // Toggle edit form visibility
+        toggleEditButton.setOnAction(e -> {
+            boolean isVisible = editFormContainer.isVisible();
+            editFormContainer.setVisible(!isVisible);
+            editFormContainer.setManaged(!isVisible);
+            toggleEditButton.setText(isVisible ? "Edit" : "Cancel");
+            toggleEditButton.setStyle(isVisible
+                ? "-fx-background-color: #6366F1; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 20;"
+                : "-fx-background-color: #EF4444; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 20;");
+            if (!isVisible) {
+                AnimationUtils.fadeIn(editFormContainer, 200);
+            }
+        });
+
+        cancelButton.setOnAction(e -> {
+            editFormContainer.setVisible(false);
+            editFormContainer.setManaged(false);
+            toggleEditButton.setText("Edit");
+            toggleEditButton.setStyle("-fx-background-color: #6366F1; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 8 20;");
+            messageLabel.setVisible(false);
+            messageLabel.setManaged(false);
+        });
+
+        ProgressIndicator saveSpinner = new ProgressIndicator();
+        saveSpinner.setMaxSize(20, 20);
+
+        saveButton.setOnAction(e -> {
+            saveButton.setDisable(true);
+            saveButton.setText("Saving...");
+            saveButton.setGraphic(saveSpinner);
+
+            User updatedUser = new User();
+            updatedUser.setFirstName(firstNameField.getText().trim());
+            updatedUser.setLastName(lastNameField.getText().trim());
+            updatedUser.setEmail(emailField.getText().trim());
+            updatedUser.setMobile(mobileField.getText().trim());
+            updatedUser.setCompany(companyField.getText().trim());
+            updatedUser.setJobPosition(jobField.getText().trim());
+            updatedUser.setCity(cityField.getText().trim());
+            updatedUser.setCountry(countryField.getText().trim());
+
+            apiService.updateProfile(sessionManager.getAuthorizationHeader(), updatedUser)
+                .thenAccept(result -> Platform.runLater(() -> {
+                    saveButton.setDisable(false);
+                    saveButton.setText("Save Changes");
+                    saveButton.setGraphic(saveIcon);
+
+                    if (result.isSuccess()) {
+                        currentUser = result.getData();
+                        messageLabel.setText("Profile updated successfully!");
+                        messageLabel.setTextFill(Color.web("#10B981"));
+                        messageLabel.setVisible(true);
+                        messageLabel.setManaged(true);
+
+                        // Refresh the profile view after a short delay
+                        new Thread(() -> {
+                            try {
+                                Thread.sleep(1000);
+                                Platform.runLater(() -> showProfileContent());
+                            } catch (InterruptedException ignored) {}
+                        }).start();
+                    } else {
+                        messageLabel.setText(result.getError());
+                        messageLabel.setTextFill(Color.web("#EF4444"));
+                        messageLabel.setVisible(true);
+                        messageLabel.setManaged(true);
+                    }
+                }));
+        });
+
+        editSection.getChildren().addAll(editHeader, editFormContainer);
+
+        profileContent.getChildren().addAll(headerLabel, profileCard, editSection);
         scrollPane.setContent(profileContent);
         contentArea.getChildren().add(scrollPane);
 
         AnimationUtils.fadeIn(profileContent, 300);
+    }
+
+    private VBox createProfileInputField(String labelText, String value) {
+        VBox container = new VBox(6);
+
+        Label label = new Label(labelText);
+        label.setTextFill(Color.web("#94A3B8"));
+        label.setFont(Font.font("System", FontWeight.MEDIUM, 12));
+
+        TextField field = new TextField(value != null ? value : "");
+        field.getStyleClass().add("profile-edit-field");
+        field.setStyle("-fx-background-color: #0F172A; -fx-text-fill: white; " +
+                "-fx-background-radius: 8; -fx-padding: 12; -fx-border-color: #334155; -fx-border-radius: 8;");
+        field.setPrefHeight(45);
+
+        container.getChildren().addAll(label, field);
+        return container;
     }
 
     private void addProfileField(GridPane grid, int col, int row, String label, String value) {
@@ -1075,5 +1261,357 @@ public class DashboardController {
     private void handleLogout() {
         sessionManager.logout();
         SceneManager.logout();
+    }
+
+    // ==================== SETTINGS CONTENT ====================
+    private void showSettingsContent() {
+        contentArea.getChildren().clear();
+
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+
+        VBox settingsContent = new VBox(30);
+        settingsContent.setPadding(new Insets(40));
+        settingsContent.setStyle("-fx-background-color: #0F172A;");
+
+        // Header
+        Label headerLabel = new Label("Settings");
+        headerLabel.setFont(Font.font("System", FontWeight.BOLD, 32));
+        headerLabel.setTextFill(Color.WHITE);
+
+        Label subLabel = new Label("Manage your account settings and preferences");
+        subLabel.setFont(Font.font("System", 14));
+        subLabel.setTextFill(Color.web("#94A3B8"));
+
+        VBox headerBox = new VBox(8);
+        headerBox.getChildren().addAll(headerLabel, subLabel);
+
+        // Change Password Card
+        VBox passwordCard = new VBox(20);
+        passwordCard.setPadding(new Insets(30));
+        passwordCard.setStyle("-fx-background-color: #1E293B; -fx-background-radius: 16;");
+        passwordCard.setMaxWidth(500);
+
+        Label passwordTitle = new Label("Change Password");
+        passwordTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
+        passwordTitle.setTextFill(Color.WHITE);
+
+        Label passwordDesc = new Label("Update your password to keep your account secure");
+        passwordDesc.setFont(Font.font("System", 13));
+        passwordDesc.setTextFill(Color.web("#94A3B8"));
+
+        // Current password
+        VBox currentPwBox = createSettingsInputField("Current Password", true);
+        PasswordField currentPwField = (PasswordField) currentPwBox.lookup(".settings-field");
+
+        // New password
+        VBox newPwBox = createSettingsInputField("New Password", true);
+        PasswordField newPwField = (PasswordField) newPwBox.lookup(".settings-field");
+
+        // Confirm password
+        VBox confirmPwBox = createSettingsInputField("Confirm New Password", true);
+        PasswordField confirmPwField = (PasswordField) confirmPwBox.lookup(".settings-field");
+
+        // Message label
+        Label pwMessageLabel = new Label();
+        pwMessageLabel.setFont(Font.font("System", 13));
+        pwMessageLabel.setVisible(false);
+        pwMessageLabel.setManaged(false);
+
+        // Change password button
+        Button changePwButton = new Button("Change Password");
+        changePwButton.setPrefHeight(45);
+        changePwButton.setPrefWidth(200);
+        changePwButton.setFont(Font.font("System", FontWeight.BOLD, 14));
+        changePwButton.setStyle("-fx-background-color: linear-gradient(to right, #6366F1, #8B5CF6); " +
+                "-fx-text-fill: white; -fx-background-radius: 10; -fx-cursor: hand;");
+
+        FontIcon pwIcon = new FontIcon("fas-key");
+        pwIcon.setIconSize(14);
+        pwIcon.setIconColor(Color.WHITE);
+        changePwButton.setGraphic(pwIcon);
+
+        ProgressIndicator pwSpinner = new ProgressIndicator();
+        pwSpinner.setMaxSize(20, 20);
+
+        changePwButton.setOnAction(e -> {
+            String currentPw = currentPwField.getText();
+            String newPw = newPwField.getText();
+            String confirmPw = confirmPwField.getText();
+
+            if (currentPw.isEmpty() || newPw.isEmpty() || confirmPw.isEmpty()) {
+                pwMessageLabel.setText("Please fill in all fields");
+                pwMessageLabel.setTextFill(Color.web("#EF4444"));
+                pwMessageLabel.setVisible(true);
+                pwMessageLabel.setManaged(true);
+                return;
+            }
+
+            if (newPw.length() < 6) {
+                pwMessageLabel.setText("New password must be at least 6 characters");
+                pwMessageLabel.setTextFill(Color.web("#EF4444"));
+                pwMessageLabel.setVisible(true);
+                pwMessageLabel.setManaged(true);
+                return;
+            }
+
+            if (!newPw.equals(confirmPw)) {
+                pwMessageLabel.setText("New passwords do not match");
+                pwMessageLabel.setTextFill(Color.web("#EF4444"));
+                pwMessageLabel.setVisible(true);
+                pwMessageLabel.setManaged(true);
+                return;
+            }
+
+            changePwButton.setDisable(true);
+            changePwButton.setText("Changing...");
+            changePwButton.setGraphic(pwSpinner);
+
+            PasswordChangeRequest request = new PasswordChangeRequest(currentPw, newPw);
+            apiService.changePassword(sessionManager.getAuthorizationHeader(), request)
+                .thenAccept(result -> Platform.runLater(() -> {
+                    changePwButton.setDisable(false);
+                    changePwButton.setText("Change Password");
+                    changePwButton.setGraphic(pwIcon);
+
+                    if (result.isSuccess()) {
+                        pwMessageLabel.setText("Password changed successfully!");
+                        pwMessageLabel.setTextFill(Color.web("#10B981"));
+                        currentPwField.clear();
+                        newPwField.clear();
+                        confirmPwField.clear();
+                    } else {
+                        pwMessageLabel.setText(result.getError());
+                        pwMessageLabel.setTextFill(Color.web("#EF4444"));
+                    }
+                    pwMessageLabel.setVisible(true);
+                    pwMessageLabel.setManaged(true);
+                }));
+        });
+
+        passwordCard.getChildren().addAll(passwordTitle, passwordDesc, currentPwBox, newPwBox, confirmPwBox, pwMessageLabel, changePwButton);
+
+        settingsContent.getChildren().addAll(headerBox, passwordCard);
+        scrollPane.setContent(settingsContent);
+        contentArea.getChildren().add(scrollPane);
+
+        AnimationUtils.fadeIn(settingsContent, 300);
+    }
+
+    private VBox createSettingsInputField(String labelText, boolean isPassword) {
+        VBox container = new VBox(6);
+
+        Label label = new Label(labelText);
+        label.setTextFill(Color.web("#94A3B8"));
+        label.setFont(Font.font("System", FontWeight.MEDIUM, 12));
+
+        Control field;
+        if (isPassword) {
+            field = new PasswordField();
+        } else {
+            field = new TextField();
+        }
+        field.getStyleClass().add("settings-field");
+        field.setStyle("-fx-background-color: #0F172A; -fx-text-fill: white; " +
+                "-fx-background-radius: 8; -fx-padding: 12; -fx-border-color: #334155; -fx-border-radius: 8;");
+        field.setPrefHeight(45);
+
+        container.getChildren().addAll(label, field);
+        return container;
+    }
+
+
+    // ==================== USER LIST CONTENT (Admin) ====================
+    private void showUserListContent() {
+        contentArea.getChildren().clear();
+
+        VBox userListContent = new VBox(20);
+        userListContent.setPadding(new Insets(40));
+        userListContent.setStyle("-fx-background-color: #0F172A;");
+
+        // Header
+        HBox headerBox = new HBox();
+        headerBox.setAlignment(Pos.CENTER_LEFT);
+
+        VBox titleBox = new VBox(8);
+        Label headerLabel = new Label("All Users");
+        headerLabel.setFont(Font.font("System", FontWeight.BOLD, 32));
+        headerLabel.setTextFill(Color.WHITE);
+
+        Label subLabel = new Label("View and manage all registered users");
+        subLabel.setFont(Font.font("System", 14));
+        subLabel.setTextFill(Color.web("#94A3B8"));
+        titleBox.getChildren().addAll(headerLabel, subLabel);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        // Refresh button
+        Button refreshButton = new Button("Refresh");
+        refreshButton.setStyle("-fx-background-color: #6366F1; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 20;");
+        FontIcon refreshIcon = new FontIcon("fas-sync-alt");
+        refreshIcon.setIconSize(14);
+        refreshIcon.setIconColor(Color.WHITE);
+        refreshButton.setGraphic(refreshIcon);
+
+        headerBox.getChildren().addAll(titleBox, spacer, refreshButton);
+
+        // Users table container
+        VBox tableContainer = new VBox(10);
+        tableContainer.setStyle("-fx-background-color: #1E293B; -fx-background-radius: 16;");
+        tableContainer.setPadding(new Insets(20));
+        VBox.setVgrow(tableContainer, Priority.ALWAYS);
+
+        // Pagination controls
+        HBox paginationBox = new HBox(10);
+        paginationBox.setAlignment(Pos.CENTER);
+
+        Button prevButton = new Button("Previous");
+        prevButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8;");
+
+        Label pageLabel = new Label("Page 1 of 1");
+        pageLabel.setTextFill(Color.web("#94A3B8"));
+
+        Button nextButton = new Button("Next");
+        nextButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8;");
+
+        paginationBox.getChildren().addAll(prevButton, pageLabel, nextButton);
+
+        // State
+        final int[] currentPage = {0};
+        final int pageSize = 10;
+
+        Runnable loadUsers = () -> {
+            tableContainer.getChildren().clear();
+            ProgressIndicator spinner = new ProgressIndicator();
+            spinner.setMaxSize(40, 40);
+            tableContainer.getChildren().add(spinner);
+            tableContainer.setAlignment(Pos.CENTER);
+
+            apiService.getAllUsers(sessionManager.getAuthorizationHeader(), currentPage[0], pageSize, "username", "asc")
+                .thenAccept(result -> Platform.runLater(() -> {
+                    tableContainer.getChildren().clear();
+                    tableContainer.setAlignment(Pos.TOP_LEFT);
+
+                    if (result.isSuccess()) {
+                        UserListResponse response = result.getData();
+                        pageLabel.setText("Page " + (response.getCurrentPage() + 1) + " of " + Math.max(1, response.getTotalPages()));
+                        prevButton.setDisable(response.getCurrentPage() == 0);
+                        nextButton.setDisable(response.getCurrentPage() >= response.getTotalPages() - 1);
+
+                        // Table header
+                        HBox headerRow = createUserTableHeader();
+                        tableContainer.getChildren().add(headerRow);
+
+                        // User rows
+                        if (response.getUsers() != null && !response.getUsers().isEmpty()) {
+                            for (User user : response.getUsers()) {
+                                HBox userRow = createUserTableRow(user);
+                                tableContainer.getChildren().add(userRow);
+                            }
+                        } else {
+                            Label noUsersLabel = new Label("No users found");
+                            noUsersLabel.setTextFill(Color.web("#94A3B8"));
+                            noUsersLabel.setPadding(new Insets(20));
+                            tableContainer.getChildren().add(noUsersLabel);
+                        }
+
+                        // Stats
+                        Label statsLabel = new Label("Showing " + (response.getUsers() != null ? response.getUsers().size() : 0) +
+                            " of " + response.getTotalItems() + " users");
+                        statsLabel.setTextFill(Color.web("#64748B"));
+                        statsLabel.setFont(Font.font("System", 12));
+                        statsLabel.setPadding(new Insets(10, 0, 0, 0));
+                        tableContainer.getChildren().add(statsLabel);
+                    } else {
+                        Label errorLabel = new Label("Failed to load users: " + result.getError());
+                        errorLabel.setTextFill(Color.web("#EF4444"));
+                        tableContainer.getChildren().add(errorLabel);
+                    }
+                }));
+        };
+
+        refreshButton.setOnAction(e -> loadUsers.run());
+        prevButton.setOnAction(e -> { currentPage[0]--; loadUsers.run(); });
+        nextButton.setOnAction(e -> { currentPage[0]++; loadUsers.run(); });
+
+        userListContent.getChildren().addAll(headerBox, tableContainer, paginationBox);
+        contentArea.getChildren().add(userListContent);
+
+        // Initial load
+        loadUsers.run();
+
+        AnimationUtils.fadeIn(userListContent, 300);
+    }
+
+    private HBox createUserTableHeader() {
+        HBox header = new HBox();
+        header.setStyle("-fx-background-color: #334155; -fx-background-radius: 8;");
+        header.setPadding(new Insets(12, 16, 12, 16));
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        String[] columns = {"Username", "Email", "Name", "Company", "Role"};
+        double[] widths = {150, 200, 150, 150, 100};
+
+        for (int i = 0; i < columns.length; i++) {
+            Label colLabel = new Label(columns[i]);
+            colLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+            colLabel.setTextFill(Color.web("#94A3B8"));
+            colLabel.setPrefWidth(widths[i]);
+            header.getChildren().add(colLabel);
+        }
+
+        return header;
+    }
+
+    private HBox createUserTableRow(User user) {
+        HBox row = new HBox();
+        row.setStyle("-fx-background-color: transparent; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;");
+        row.setPadding(new Insets(12, 16, 12, 16));
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        row.setOnMouseEntered(e -> row.setStyle("-fx-background-color: #334155; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;"));
+        row.setOnMouseExited(e -> row.setStyle("-fx-background-color: transparent; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;"));
+
+        double[] widths = {150, 200, 150, 150, 100};
+
+        Label usernameLabel = new Label(user.getUsername() != null ? user.getUsername() : "-");
+        usernameLabel.setTextFill(Color.WHITE);
+        usernameLabel.setFont(Font.font("System", FontWeight.MEDIUM, 13));
+        usernameLabel.setPrefWidth(widths[0]);
+
+        Label emailLabel = new Label(user.getEmail() != null ? user.getEmail() : "-");
+        emailLabel.setTextFill(Color.web("#94A3B8"));
+        emailLabel.setFont(Font.font("System", 13));
+        emailLabel.setPrefWidth(widths[1]);
+
+        String fullName = (user.getFirstName() != null ? user.getFirstName() : "") + " " +
+                         (user.getLastName() != null ? user.getLastName() : "");
+        Label nameLabel = new Label(fullName.trim().isEmpty() ? "-" : fullName.trim());
+        nameLabel.setTextFill(Color.web("#94A3B8"));
+        nameLabel.setFont(Font.font("System", 13));
+        nameLabel.setPrefWidth(widths[2]);
+
+        Label companyLabel = new Label(user.getCompany() != null ? user.getCompany() : "-");
+        companyLabel.setTextFill(Color.web("#94A3B8"));
+        companyLabel.setFont(Font.font("System", 13));
+        companyLabel.setPrefWidth(widths[3]);
+
+        String roleName = user.getRole() != null && user.getRole().getName() != null
+            ? user.getRole().getName().replace("ROLE_", "") : "USER";
+        Label roleLabel = new Label(roleName);
+        roleLabel.setFont(Font.font("System", FontWeight.BOLD, 11));
+        roleLabel.setPadding(new Insets(4, 8, 4, 8));
+        if (roleName.equals("ADMIN")) {
+            roleLabel.setStyle("-fx-background-color: #6366F120; -fx-background-radius: 4; -fx-text-fill: #818CF8;");
+        } else {
+            roleLabel.setStyle("-fx-background-color: #10B98120; -fx-background-radius: 4; -fx-text-fill: #34D399;");
+        }
+        roleLabel.setPrefWidth(widths[4]);
+
+        row.getChildren().addAll(usernameLabel, emailLabel, nameLabel, companyLabel, roleLabel);
+
+        return row;
     }
 }

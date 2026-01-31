@@ -58,6 +58,7 @@ public class UserController {
     private FakeDataService fakeDataService;
 
     @GetMapping("/users/generate/{count}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<FileSystemResource> generateUsers(@PathVariable int count, HttpServletResponse response) throws IOException {
         // Generate user data
         List<User> users = new ArrayList<>();
@@ -87,6 +88,7 @@ public class UserController {
     }
 
     @PostMapping("/users/batch")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> batchUsers(@RequestParam("file") MultipartFile file) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         int totalRecords = 0;

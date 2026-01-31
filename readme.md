@@ -4,6 +4,54 @@ Ce projet est une application développée avec `Spring Boot` et `Spring Securit
 
 Le projet comprend plusieurs endpoints pour générer des utilisateurs, importer des utilisateurs à partir d'un fichier `JSON`, authentifier les utilisateurs et consulter les profils des utilisateurs.
 
+## 🚀 Quick Start
+
+### Default Admin Credentials
+
+A default admin user is automatically created when the application starts:
+
+| Field | Value |
+|-------|-------|
+| **Username** | `admin` |
+| **Password** | `admin` |
+| **Role** | Administrator |
+
+### Running the Application
+
+1. **Start the Spring Boot backend:**
+   ```bash
+   .\mvnw.cmd spring-boot:run
+   ```
+
+2. **Open the JavaFX client** (see below) or use Swagger UI:
+   - Swagger UI: http://localhost:9090/swagger-ui/index.html
+
+3. **Login with:**
+   - Username: `admin`
+   - Password: `admin`
+
+## 🖥️ JavaFX Client Application
+
+A modern JavaFX desktop client is available in the `javafx-client` folder. It provides a beautiful dark-themed UI to interact with all API endpoints.
+
+### Features
+- 🔐 JWT Authentication with animated login screen
+- 👤 User profile viewing
+- 👥 Fake user generation and download
+- 📁 Batch user import from JSON files
+- 🔍 Admin user lookup
+
+### Running the JavaFX Client
+
+```bash
+cd javafx-client
+..\mvnw.cmd javafx:run
+```
+
+Or simply run `javafx-client\run.bat` on Windows.
+
+> **Note:** Make sure the Spring Boot backend is running on `localhost:9090` before starting the client.
+
 ## Endpoints
 
 ### 1. Génération d'utilisateurs

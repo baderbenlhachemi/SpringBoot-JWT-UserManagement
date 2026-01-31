@@ -79,11 +79,12 @@ public class ApiService {
     /**
      * Generate fake users and download the JSON file (Admin only)
      */
-    public CompletableFuture<ApiResult<byte[]>> generateUsers(String token, int count) {
+    public CompletableFuture<ApiResult<byte[]>> generateUsers(String token, int count, int adminCount) {
         return CompletableFuture.supplyAsync(() -> {
             try {
+                String url = BASE_URL + "/users/generate/" + count + "?adminCount=" + adminCount;
                 Request request = new Request.Builder()
-                        .url(BASE_URL + "/users/generate/" + count)
+                        .url(url)
                         .header("Authorization", token)
                         .get()
                         .build();

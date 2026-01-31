@@ -316,36 +316,92 @@ public class DashboardController {
             createStatCard("API Server", "localhost:9090", "fas-server", Color.web("#3B82F6"))
         );
 
-        // Admin stats section
+        // Admin stats section - Enhanced UI
         VBox adminStatsSection = new VBox(16);
         if (sessionManager.isAdmin()) {
-            Label adminStatsLabel = new Label("User Statistics");
-            adminStatsLabel.setFont(Font.font("System", FontWeight.BOLD, 20));
+            // Stats header with refresh button
+            HBox statsHeader = new HBox();
+            statsHeader.setAlignment(Pos.CENTER_LEFT);
+            statsHeader.setPadding(new Insets(20, 0, 0, 0));
+
+            Label adminStatsLabel = new Label("📊 User Statistics");
+            adminStatsLabel.setFont(Font.font("System", FontWeight.BOLD, 22));
             adminStatsLabel.setTextFill(Color.WHITE);
-            adminStatsLabel.setPadding(new Insets(20, 0, 0, 0));
 
-            HBox adminStatsRow = new HBox(20);
+            Region headerSpacer = new Region();
+            HBox.setHgrow(headerSpacer, Priority.ALWAYS);
 
-            // Create stat cards with placeholders
-            VBox totalUsersCard = createStatCard("Total Users", "...", "fas-users", Color.web("#6366F1"));
-            VBox adminsCard = createStatCard("Admins", "...", "fas-user-shield", Color.web("#8B5CF6"));
-            VBox regularUsersCard = createStatCard("Regular Users", "...", "fas-user", Color.web("#10B981"));
-            VBox newTodayCard = createStatCard("New Today", "...", "fas-user-plus", Color.web("#F59E0B"));
+            Button refreshStatsBtn = new Button("Refresh");
+            refreshStatsBtn.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 6; -fx-padding: 6 12;");
+            FontIcon refreshIcon = new FontIcon("fas-sync-alt");
+            refreshIcon.setIconSize(12);
+            refreshIcon.setIconColor(Color.WHITE);
+            refreshStatsBtn.setGraphic(refreshIcon);
+
+            statsHeader.getChildren().addAll(adminStatsLabel, headerSpacer, refreshStatsBtn);
+
+            // Stats cards container with gradient background
+            HBox adminStatsRow = new HBox(16);
+            adminStatsRow.setPadding(new Insets(20));
+            adminStatsRow.setStyle("-fx-background-color: linear-gradient(to right, #1E293B, #334155); -fx-background-radius: 16;");
+
+            // Create enhanced stat cards
+            VBox totalUsersCard = createEnhancedStatCard("Total Users", "...", "fas-users",
+                    Color.web("#6366F1"), Color.web("#818CF8"));
+            VBox adminsCard = createEnhancedStatCard("Administrators", "...", "fas-user-shield",
+                    Color.web("#8B5CF6"), Color.web("#A78BFA"));
+            VBox regularUsersCard = createEnhancedStatCard("Regular Users", "...", "fas-user",
+                    Color.web("#10B981"), Color.web("#34D399"));
+            VBox newTodayCard = createEnhancedStatCard("New Today", "...", "fas-user-plus",
+                    Color.web("#F59E0B"), Color.web("#FBBF24"));
 
             adminStatsRow.getChildren().addAll(totalUsersCard, adminsCard, regularUsersCard, newTodayCard);
-            adminStatsSection.getChildren().addAll(adminStatsLabel, adminStatsRow);
 
-            // Load stats asynchronously
-            apiService.getUserStats(sessionManager.getAuthorizationHeader())
-                .thenAccept(result -> Platform.runLater(() -> {
-                    if (result.isSuccess()) {
-                        UserStats stats = result.getData();
-                        updateStatCardValue(totalUsersCard, String.valueOf(stats.getTotalUsers()));
-                        updateStatCardValue(adminsCard, String.valueOf(stats.getTotalAdmins()));
-                        updateStatCardValue(regularUsersCard, String.valueOf(stats.getTotalRegularUsers()));
-                        updateStatCardValue(newTodayCard, String.valueOf(stats.getNewUsersToday()));
-                    }
-                }));
+            // Progress indicators for each card
+            ProgressIndicator[] spinners = new ProgressIndicator[4];
+            VBox[] cards = {totalUsersCard, adminsCard, regularUsersCard, newTodayCard};
+
+            // Load stats function
+            Runnable loadStats = () -> {
+                // Show loading state
+                for (VBox card : cards) {
+                    updateEnhancedStatCardValue(card, "...");
+                }
+
+                apiService.getUserStats(sessionManager.getAuthorizationHeader())
+                    .thenAccept(result -> Platform.runLater(() -> {
+                        if (result.isSuccess()) {
+                            UserStats stats = result.getData();
+                            updateEnhancedStatCardValue(totalUsersCard, String.valueOf(stats.getTotalUsers()));
+                            updateEnhancedStatCardValue(adminsCard, String.valueOf(stats.getTotalAdmins()));
+                            updateEnhancedStatCardValue(regularUsersCard, String.valueOf(stats.getTotalRegularUsers()));
+                            updateEnhancedStatCardValue(newTodayCard, String.valueOf(stats.getNewUsersToday()));
+
+                            // Add percentage labels
+                            if (stats.getTotalUsers() > 0) {
+                                double adminPercent = (stats.getTotalAdmins() * 100.0) / stats.getTotalUsers();
+                                double userPercent = (stats.getTotalRegularUsers() * 100.0) / stats.getTotalUsers();
+                                updateEnhancedStatCardSubtext(adminsCard, String.format("%.1f%% of total", adminPercent));
+                                updateEnhancedStatCardSubtext(regularUsersCard, String.format("%.1f%% of total", userPercent));
+                            }
+                        }
+                    }));
+            };
+
+            refreshStatsBtn.setOnAction(e -> {
+                refreshStatsBtn.setDisable(true);
+                loadStats.run();
+                // Re-enable after a short delay
+                new Thread(() -> {
+                    try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+                    Platform.runLater(() -> refreshStatsBtn.setDisable(false));
+                }).start();
+            });
+
+            adminStatsSection.getChildren().addAll(statsHeader, adminStatsRow);
+
+            // Initial load
+            loadStats.run();
         }
 
         // Quick actions
@@ -426,6 +482,80 @@ public class DashboardController {
                     label.setText(newValue);
                     break;
                 }
+            }
+        }
+    }
+
+    private VBox createEnhancedStatCard(String title, String value, String iconCode, Color primaryColor, Color lightColor) {
+        VBox card = new VBox(8);
+        card.setPadding(new Insets(20));
+        card.setMinWidth(160);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setStyle("-fx-background-color: #0F172A; -fx-background-radius: 12; -fx-border-color: " +
+                UIComponents.toHexString(primaryColor) + "40; -fx-border-radius: 12; -fx-border-width: 1;");
+        HBox.setHgrow(card, Priority.ALWAYS);
+
+        // Icon with gradient background
+        HBox iconRow = new HBox(12);
+        iconRow.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane iconContainer = new StackPane();
+        Circle iconBg = new Circle(22);
+        iconBg.setFill(new LinearGradient(0, 0, 1, 1, true, CycleMethod.NO_CYCLE,
+                new Stop(0, primaryColor),
+                new Stop(1, lightColor)));
+        FontIcon icon = new FontIcon(iconCode);
+        icon.setIconSize(18);
+        icon.setIconColor(Color.WHITE);
+        iconContainer.getChildren().addAll(iconBg, icon);
+
+        Label titleLabel = new Label(title);
+        titleLabel.setFont(Font.font("System", FontWeight.MEDIUM, 12));
+        titleLabel.setTextFill(Color.web("#94A3B8"));
+
+        iconRow.getChildren().addAll(iconContainer, titleLabel);
+
+        // Value with large font
+        Label valueLabel = new Label(value);
+        valueLabel.setFont(Font.font("System", FontWeight.BOLD, 32));
+        valueLabel.setTextFill(lightColor);
+        valueLabel.getStyleClass().add("stat-value");
+
+        // Subtext (for percentage, etc.)
+        Label subtextLabel = new Label("");
+        subtextLabel.setFont(Font.font("System", 11));
+        subtextLabel.setTextFill(Color.web("#64748B"));
+        subtextLabel.getStyleClass().add("stat-subtext");
+
+        card.getChildren().addAll(iconRow, valueLabel, subtextLabel);
+
+        // Hover effect
+        card.setOnMouseEntered(e -> {
+            card.setStyle("-fx-background-color: #1E293B; -fx-background-radius: 12; -fx-border-color: " +
+                    UIComponents.toHexString(primaryColor) + "; -fx-border-radius: 12; -fx-border-width: 1;");
+        });
+        card.setOnMouseExited(e -> {
+            card.setStyle("-fx-background-color: #0F172A; -fx-background-radius: 12; -fx-border-color: " +
+                    UIComponents.toHexString(primaryColor) + "40; -fx-border-radius: 12; -fx-border-width: 1;");
+        });
+
+        return card;
+    }
+
+    private void updateEnhancedStatCardValue(VBox card, String newValue) {
+        for (javafx.scene.Node node : card.getChildren()) {
+            if (node instanceof Label && node.getStyleClass().contains("stat-value")) {
+                ((Label) node).setText(newValue);
+                break;
+            }
+        }
+    }
+
+    private void updateEnhancedStatCardSubtext(VBox card, String subtext) {
+        for (javafx.scene.Node node : card.getChildren()) {
+            if (node instanceof Label && node.getStyleClass().contains("stat-subtext")) {
+                ((Label) node).setText(subtext);
+                break;
             }
         }
     }
@@ -837,7 +967,7 @@ public class DashboardController {
 
         // Count input
         VBox countField = new VBox(8);
-        Label countLabel = new Label("Number of Users");
+        Label countLabel = new Label("Total Number of Users");
         countLabel.setFont(Font.font("System", FontWeight.MEDIUM, 13));
         countLabel.setTextFill(Color.web("#94A3B8"));
 
@@ -848,10 +978,38 @@ public class DashboardController {
 
         countField.getChildren().addAll(countLabel, countSpinner);
 
+        // Admin count input
+        VBox adminCountField = new VBox(8);
+        Label adminCountLabel = new Label("Number of Admins");
+        adminCountLabel.setFont(Font.font("System", FontWeight.MEDIUM, 13));
+        adminCountLabel.setTextFill(Color.web("#94A3B8"));
+
+        Spinner<Integer> adminCountSpinner = new Spinner<>(0, 1000, 0, 1);
+        adminCountSpinner.setEditable(true);
+        adminCountSpinner.setMaxWidth(Double.MAX_VALUE);
+        adminCountSpinner.setStyle("-fx-background-color: #0F172A; -fx-background-radius: 8;");
+
+        // Helper text for admin count
+        Label adminHelpLabel = new Label("Admins will have ROLE_ADMIN, the rest will have ROLE_USER");
+        adminHelpLabel.setFont(Font.font("System", 11));
+        adminHelpLabel.setTextFill(Color.web("#64748B"));
+
+        adminCountField.getChildren().addAll(adminCountLabel, adminCountSpinner, adminHelpLabel);
+
+        // Update admin max when total changes
+        countSpinner.valueProperty().addListener((obs, oldVal, newVal) -> {
+            SpinnerValueFactory.IntegerSpinnerValueFactory factory =
+                (SpinnerValueFactory.IntegerSpinnerValueFactory) adminCountSpinner.getValueFactory();
+            factory.setMax(newVal);
+            if (adminCountSpinner.getValue() > newVal) {
+                adminCountSpinner.getValueFactory().setValue(newVal);
+            }
+        });
+
         // Description
         Label descLabel = new Label("This will generate a JSON file containing fake user data that can be " +
                 "imported using the Batch Import feature. Each user will have randomized information " +
-                "including name, email, company, and role.");
+                "including name, email, company, and job position.");
         descLabel.setFont(Font.font("System", 13));
         descLabel.setTextFill(Color.web("#CBD5E1"));
         descLabel.setWrapText(true);
@@ -879,12 +1037,13 @@ public class DashboardController {
 
         generateButton.setOnAction(e -> {
             int count = countSpinner.getValue();
+            int adminCount = adminCountSpinner.getValue();
             generateButton.setDisable(true);
             generateButton.setText("Generating...");
             generateButton.setGraphic(progress);
             statusLabel.setVisible(false);
 
-            apiService.generateUsers(sessionManager.getAuthorizationHeader(), count)
+            apiService.generateUsers(sessionManager.getAuthorizationHeader(), count, adminCount)
                 .thenAccept(result -> Platform.runLater(() -> {
                     generateButton.setDisable(false);
                     generateButton.setText("Generate & Download");
@@ -902,7 +1061,10 @@ public class DashboardController {
                         if (file != null) {
                             try (FileOutputStream fos = new FileOutputStream(file)) {
                                 fos.write(result.getData());
-                                statusLabel.setText("✓ Successfully saved " + count + " users to " + file.getName());
+                                String roleInfo = adminCount > 0
+                                    ? " (" + adminCount + " admins, " + (count - adminCount) + " users)"
+                                    : " (all regular users)";
+                                statusLabel.setText("✓ Successfully saved " + count + " users" + roleInfo + " to " + file.getName());
                                 statusLabel.setTextFill(Color.web("#10B981"));
                                 statusLabel.setVisible(true);
                             } catch (IOException ex) {
@@ -919,7 +1081,7 @@ public class DashboardController {
                 }));
         });
 
-        formCard.getChildren().addAll(countField, descLabel, statusLabel, generateButton);
+        formCard.getChildren().addAll(countField, adminCountField, descLabel, statusLabel, generateButton);
 
         generateContent.getChildren().addAll(headerLabel, subLabel, formCard);
         contentArea.getChildren().add(generateContent);

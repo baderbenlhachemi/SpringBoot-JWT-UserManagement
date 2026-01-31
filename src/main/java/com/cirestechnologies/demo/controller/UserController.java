@@ -68,12 +68,34 @@ public class UserController {
 
     @GetMapping("/users/generate/{count}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<FileSystemResource> generateUsers(@PathVariable int count, HttpServletResponse response) throws IOException {
+    public ResponseEntity<FileSystemResource> generateUsers(
+            @PathVariable int count,
+            @RequestParam(defaultValue = "0") int adminCount,
+            HttpServletResponse response) throws IOException {
+
+        // Validate adminCount
+        if (adminCount > count) {
+            adminCount = count;
+        }
+        if (adminCount < 0) {
+            adminCount = 0;
+        }
+
         // Generate user data
         List<User> users = new ArrayList<>();
 
-        for (int i = 0; i < count; i++) {
-            users.add(fakeDataService.generateFakeUser());
+        // Generate admin users first
+        for (int i = 0; i < adminCount; i++) {
+            User adminUser = fakeDataService.generateFakeUser();
+            adminUser.setRole(new Role(ERole.ROLE_ADMIN));
+            users.add(adminUser);
+        }
+
+        // Generate regular users
+        for (int i = 0; i < count - adminCount; i++) {
+            User regularUser = fakeDataService.generateFakeUser();
+            regularUser.setRole(new Role(ERole.ROLE_USER));
+            users.add(regularUser);
         }
 
         // Convert the list of users to JSON

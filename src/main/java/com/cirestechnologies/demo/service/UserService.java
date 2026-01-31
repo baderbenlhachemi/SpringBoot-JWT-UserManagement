@@ -47,6 +47,10 @@ public class UserService {
         return userRepository.findAll(pageable);
     }
 
+    public Page<User> searchUsers(String search, Pageable pageable) {
+        return userRepository.searchUsers(search, pageable);
+    }
+
     public long count() {
         return userRepository.count();
     }

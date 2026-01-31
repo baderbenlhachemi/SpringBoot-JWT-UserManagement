@@ -315,7 +315,7 @@ public class UserController {
     }
 
     /**
-     * List All Users - Admin only, with pagination
+     * List All Users - Admin only, with pagination and search
      */
     @GetMapping("/users")
     @PreAuthorize("hasRole('ADMIN')")
@@ -323,14 +323,21 @@ public class UserController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "username") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir
+            @RequestParam(defaultValue = "asc") String sortDir,
+            @RequestParam(required = false) String search
     ) {
         Sort sort = sortDir.equalsIgnoreCase("desc")
                 ? Sort.by(sortBy).descending()
                 : Sort.by(sortBy).ascending();
 
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<User> usersPage = userService.findAll(pageable);
+        Page<User> usersPage;
+
+        if (search != null && !search.trim().isEmpty()) {
+            usersPage = userService.searchUsers(search.trim(), pageable);
+        } else {
+            usersPage = userService.findAll(pageable);
+        }
 
         Map<String, Object> response = new HashMap<>();
         response.put("users", usersPage.getContent());

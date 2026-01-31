@@ -324,16 +324,25 @@ public class ApiService {
     }
 
     /**
-     * Get all users (Admin only) with pagination
+     * Get all users (Admin only) with pagination and search
      */
-    public CompletableFuture<ApiResult<UserListResponse>> getAllUsers(String token, int page, int size, String sortBy, String sortDir) {
+    public CompletableFuture<ApiResult<UserListResponse>> getAllUsers(String token, int page, int size, String sortBy, String sortDir, String search) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                String url = String.format("%s/users?page=%d&size=%d&sortBy=%s&sortDir=%s",
-                        BASE_URL, page, size, sortBy, sortDir);
+                StringBuilder urlBuilder = new StringBuilder();
+                urlBuilder.append(String.format("%s/users?page=%d&size=%d&sortBy=%s&sortDir=%s",
+                        BASE_URL, page, size, sortBy, sortDir));
+
+                if (search != null && !search.trim().isEmpty()) {
+                    try {
+                        urlBuilder.append("&search=").append(java.net.URLEncoder.encode(search.trim(), "UTF-8"));
+                    } catch (Exception e) {
+                        urlBuilder.append("&search=").append(search.trim());
+                    }
+                }
 
                 Request request = new Request.Builder()
-                        .url(url)
+                        .url(urlBuilder.toString())
                         .header("Authorization", token)
                         .get()
                         .build();

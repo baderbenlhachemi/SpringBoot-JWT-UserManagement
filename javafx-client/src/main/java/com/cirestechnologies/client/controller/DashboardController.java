@@ -1426,12 +1426,20 @@ public class DashboardController {
     private void showUserListContent() {
         contentArea.getChildren().clear();
 
+        // Main scrollable container
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(true);
+        scrollPane.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+
         VBox userListContent = new VBox(20);
         userListContent.setPadding(new Insets(40));
         userListContent.setStyle("-fx-background-color: #0F172A;");
 
         // Header
-        HBox headerBox = new HBox();
+        HBox headerBox = new HBox(20);
         headerBox.setAlignment(Pos.CENTER_LEFT);
 
         VBox titleBox = new VBox(8);
@@ -1447,56 +1455,88 @@ public class DashboardController {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // Refresh button
-        Button refreshButton = new Button("Refresh");
-        refreshButton.setStyle("-fx-background-color: #6366F1; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 20;");
-        FontIcon refreshIcon = new FontIcon("fas-sync-alt");
-        refreshIcon.setIconSize(14);
-        refreshIcon.setIconColor(Color.WHITE);
-        refreshButton.setGraphic(refreshIcon);
+        // Search box
+        HBox searchBox = new HBox(10);
+        searchBox.setAlignment(Pos.CENTER_RIGHT);
 
-        headerBox.getChildren().addAll(titleBox, spacer, refreshButton);
+        TextField searchField = new TextField();
+        searchField.setPromptText("Search users...");
+        searchField.setPrefWidth(250);
+        searchField.setPrefHeight(40);
+        searchField.setStyle("-fx-background-color: #1E293B; -fx-text-fill: white; " +
+                "-fx-prompt-text-fill: #64748B; -fx-background-radius: 8; -fx-padding: 0 12;");
+
+        Button searchButton = new Button("Search");
+        searchButton.setStyle("-fx-background-color: #6366F1; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 20;");
+        FontIcon searchIcon = new FontIcon("fas-search");
+        searchIcon.setIconSize(14);
+        searchIcon.setIconColor(Color.WHITE);
+        searchButton.setGraphic(searchIcon);
+
+        Button clearButton = new Button("Clear");
+        clearButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 20;");
+
+        searchBox.getChildren().addAll(searchField, searchButton, clearButton);
+        headerBox.getChildren().addAll(titleBox, spacer, searchBox);
 
         // Users table container
-        VBox tableContainer = new VBox(10);
+        VBox tableContainer = new VBox(0);
         tableContainer.setStyle("-fx-background-color: #1E293B; -fx-background-radius: 16;");
         tableContainer.setPadding(new Insets(20));
-        VBox.setVgrow(tableContainer, Priority.ALWAYS);
 
         // Pagination controls
-        HBox paginationBox = new HBox(10);
+        HBox paginationBox = new HBox(15);
         paginationBox.setAlignment(Pos.CENTER);
+        paginationBox.setPadding(new Insets(10, 0, 0, 0));
 
-        Button prevButton = new Button("Previous");
-        prevButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8;");
+        Button prevButton = new Button("← Previous");
+        prevButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 20;");
 
         Label pageLabel = new Label("Page 1 of 1");
         pageLabel.setTextFill(Color.web("#94A3B8"));
+        pageLabel.setFont(Font.font("System", FontWeight.MEDIUM, 14));
 
-        Button nextButton = new Button("Next");
-        nextButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8;");
+        Button nextButton = new Button("Next →");
+        nextButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 20;");
 
-        paginationBox.getChildren().addAll(prevButton, pageLabel, nextButton);
+        // Page size selector
+        Label pageSizeLabel = new Label("Per page:");
+        pageSizeLabel.setTextFill(Color.web("#94A3B8"));
+
+        ComboBox<Integer> pageSizeCombo = new ComboBox<>();
+        pageSizeCombo.getItems().addAll(5, 10, 20, 50);
+        pageSizeCombo.setValue(10);
+        pageSizeCombo.setStyle("-fx-background-color: #334155;");
+
+        paginationBox.getChildren().addAll(prevButton, pageLabel, nextButton,
+                new Region() {{ HBox.setHgrow(this, Priority.ALWAYS); }},
+                pageSizeLabel, pageSizeCombo);
 
         // State
         final int[] currentPage = {0};
-        final int pageSize = 10;
+        final String[] currentSearch = {""};
 
+        // Load users function
         Runnable loadUsers = () -> {
             tableContainer.getChildren().clear();
             ProgressIndicator spinner = new ProgressIndicator();
             spinner.setMaxSize(40, 40);
-            tableContainer.getChildren().add(spinner);
-            tableContainer.setAlignment(Pos.CENTER);
+            VBox spinnerBox = new VBox(spinner);
+            spinnerBox.setAlignment(Pos.CENTER);
+            spinnerBox.setPadding(new Insets(40));
+            tableContainer.getChildren().add(spinnerBox);
 
-            apiService.getAllUsers(sessionManager.getAuthorizationHeader(), currentPage[0], pageSize, "username", "asc")
+            int pageSize = pageSizeCombo.getValue();
+
+            apiService.getAllUsers(sessionManager.getAuthorizationHeader(), currentPage[0], pageSize, "username", "asc", currentSearch[0])
                 .thenAccept(result -> Platform.runLater(() -> {
                     tableContainer.getChildren().clear();
-                    tableContainer.setAlignment(Pos.TOP_LEFT);
 
                     if (result.isSuccess()) {
                         UserListResponse response = result.getData();
-                        pageLabel.setText("Page " + (response.getCurrentPage() + 1) + " of " + Math.max(1, response.getTotalPages()));
+                        int totalPages = Math.max(1, response.getTotalPages());
+                        pageLabel.setText("Page " + (response.getCurrentPage() + 1) + " of " + totalPages +
+                                " (" + response.getTotalItems() + " total)");
                         prevButton.setDisable(response.getCurrentPage() == 0);
                         nextButton.setDisable(response.getCurrentPage() >= response.getTotalPages() - 1);
 
@@ -1504,40 +1544,72 @@ public class DashboardController {
                         HBox headerRow = createUserTableHeader();
                         tableContainer.getChildren().add(headerRow);
 
-                        // User rows
+                        // User rows in a scrollable VBox
+                        VBox rowsContainer = new VBox(0);
+
                         if (response.getUsers() != null && !response.getUsers().isEmpty()) {
                             for (User user : response.getUsers()) {
                                 HBox userRow = createUserTableRow(user);
-                                tableContainer.getChildren().add(userRow);
+                                rowsContainer.getChildren().add(userRow);
                             }
                         } else {
                             Label noUsersLabel = new Label("No users found");
                             noUsersLabel.setTextFill(Color.web("#94A3B8"));
-                            noUsersLabel.setPadding(new Insets(20));
-                            tableContainer.getChildren().add(noUsersLabel);
+                            noUsersLabel.setPadding(new Insets(40));
+                            noUsersLabel.setFont(Font.font("System", 16));
+                            rowsContainer.getChildren().add(noUsersLabel);
+                            rowsContainer.setAlignment(Pos.CENTER);
                         }
 
-                        // Stats
-                        Label statsLabel = new Label("Showing " + (response.getUsers() != null ? response.getUsers().size() : 0) +
-                            " of " + response.getTotalItems() + " users");
-                        statsLabel.setTextFill(Color.web("#64748B"));
-                        statsLabel.setFont(Font.font("System", 12));
-                        statsLabel.setPadding(new Insets(10, 0, 0, 0));
-                        tableContainer.getChildren().add(statsLabel);
+                        tableContainer.getChildren().add(rowsContainer);
+
                     } else {
                         Label errorLabel = new Label("Failed to load users: " + result.getError());
                         errorLabel.setTextFill(Color.web("#EF4444"));
+                        errorLabel.setPadding(new Insets(20));
                         tableContainer.getChildren().add(errorLabel);
                     }
                 }));
         };
 
-        refreshButton.setOnAction(e -> loadUsers.run());
-        prevButton.setOnAction(e -> { currentPage[0]--; loadUsers.run(); });
-        nextButton.setOnAction(e -> { currentPage[0]++; loadUsers.run(); });
+        // Event handlers
+        searchButton.setOnAction(e -> {
+            currentPage[0] = 0;
+            currentSearch[0] = searchField.getText().trim();
+            loadUsers.run();
+        });
+
+        searchField.setOnAction(e -> {
+            currentPage[0] = 0;
+            currentSearch[0] = searchField.getText().trim();
+            loadUsers.run();
+        });
+
+        clearButton.setOnAction(e -> {
+            searchField.clear();
+            currentPage[0] = 0;
+            currentSearch[0] = "";
+            loadUsers.run();
+        });
+
+        prevButton.setOnAction(e -> {
+            currentPage[0]--;
+            loadUsers.run();
+        });
+
+        nextButton.setOnAction(e -> {
+            currentPage[0]++;
+            loadUsers.run();
+        });
+
+        pageSizeCombo.setOnAction(e -> {
+            currentPage[0] = 0;
+            loadUsers.run();
+        });
 
         userListContent.getChildren().addAll(headerBox, tableContainer, paginationBox);
-        contentArea.getChildren().add(userListContent);
+        scrollPane.setContent(userListContent);
+        contentArea.getChildren().add(scrollPane);
 
         // Initial load
         loadUsers.run();

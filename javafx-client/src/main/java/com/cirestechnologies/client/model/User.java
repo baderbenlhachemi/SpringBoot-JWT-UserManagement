@@ -22,6 +22,7 @@ public class User {
     private Role role;
     private boolean enabled = true;
     private Date createdAt;
+    private Date lastLogin;
 
     public User() {
     }
@@ -164,6 +165,14 @@ public class User {
 
     public void setCreatedAt(Date createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Date getLastLogin() {
+        return lastLogin;
+    }
+
+    public void setLastLogin(Date lastLogin) {
+        this.lastLogin = lastLogin;
     }
 
     @Override

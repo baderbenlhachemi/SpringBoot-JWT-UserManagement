@@ -73,6 +73,9 @@ public class User {
     @Temporal(TemporalType.TIMESTAMP)
     private Date createdAt;
 
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date lastLogin;
+
     @PrePersist
     protected void onCreate() {
         createdAt = new Date();

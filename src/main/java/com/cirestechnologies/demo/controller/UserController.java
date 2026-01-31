@@ -26,6 +26,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -42,6 +44,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -173,6 +176,10 @@ public class UserController {
 
         // Set the authentication object in the SecurityContext
         SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        // Update last login time
+        user.setLastLogin(new Date());
+        userService.save(user);
 
         // Generate a JWT token
         String jwt = jwtUtils.generateJwtToken(authentication);
@@ -483,5 +490,64 @@ public class UserController {
         stats.put("newUsersToday", userService.countNewUsersToday());
 
         return ResponseEntity.ok(stats);
+    }
+
+    /**
+     * Export Users to CSV - Admin only
+     */
+    @GetMapping("/users/export/csv")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> exportUsersToCsv(
+            @RequestParam(required = false) String search,
+            HttpServletResponse response) {
+
+        List<User> users;
+        if (search != null && !search.trim().isEmpty()) {
+            users = userService.searchUsers(search.trim(), PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+        } else {
+            users = userService.findAll(PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+        }
+
+        StringBuilder csv = new StringBuilder();
+
+        // CSV Header
+        csv.append("ID,Username,Email,First Name,Last Name,Company,Job Position,City,Country,Mobile,Role,Status,Created At,Last Login\n");
+
+        // CSV Data
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        for (User user : users) {
+            csv.append(escapeCsv(user.getId() != null ? user.getId().toString() : "")).append(",");
+            csv.append(escapeCsv(user.getUsername())).append(",");
+            csv.append(escapeCsv(user.getEmail())).append(",");
+            csv.append(escapeCsv(user.getFirstName())).append(",");
+            csv.append(escapeCsv(user.getLastName())).append(",");
+            csv.append(escapeCsv(user.getCompany())).append(",");
+            csv.append(escapeCsv(user.getJobPosition())).append(",");
+            csv.append(escapeCsv(user.getCity())).append(",");
+            csv.append(escapeCsv(user.getCountry())).append(",");
+            csv.append(escapeCsv(user.getMobile())).append(",");
+            csv.append(escapeCsv(user.getRole() != null ? user.getRole().getName().name() : "")).append(",");
+            csv.append(user.isEnabled() ? "Active" : "Disabled").append(",");
+            csv.append(user.getCreatedAt() != null ? dateFormat.format(user.getCreatedAt()) : "").append(",");
+            csv.append(user.getLastLogin() != null ? dateFormat.format(user.getLastLogin()) : "Never").append("\n");
+        }
+
+        byte[] csvBytes = csv.toString().getBytes();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("text/csv"));
+        headers.setContentDispositionFormData("attachment", "users_export.csv");
+        headers.setContentLength(csvBytes.length);
+
+        return new ResponseEntity<>(csvBytes, headers, HttpStatus.OK);
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) return "";
+        // Escape quotes and wrap in quotes if contains comma, quote, or newline
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
     }
 }

@@ -1682,7 +1682,15 @@ public class DashboardController {
         Button clearButton = new Button("Clear");
         clearButton.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 20;");
 
-        searchBox.getChildren().addAll(searchField, searchButton, clearButton);
+        // Export CSV button
+        Button exportCsvButton = new Button("Export CSV");
+        exportCsvButton.setStyle("-fx-background-color: #10B981; -fx-text-fill: white; -fx-background-radius: 8; -fx-padding: 10 20;");
+        FontIcon exportIcon = new FontIcon("fas-file-csv");
+        exportIcon.setIconSize(14);
+        exportIcon.setIconColor(Color.WHITE);
+        exportCsvButton.setGraphic(exportIcon);
+
+        searchBox.getChildren().addAll(searchField, searchButton, clearButton, exportCsvButton);
         headerBox.getChildren().addAll(titleBox, spacer, searchBox);
 
         // Users table container
@@ -1799,6 +1807,36 @@ public class DashboardController {
             loadUsersRef[0].run();
         });
 
+        // Export CSV handler
+        exportCsvButton.setOnAction(e -> {
+            exportCsvButton.setDisable(true);
+            exportCsvButton.setText("Exporting...");
+
+            apiService.exportUsersToCsv(sessionManager.getAuthorizationHeader(), currentSearch[0])
+                .thenAccept(result -> Platform.runLater(() -> {
+                    exportCsvButton.setDisable(false);
+                    exportCsvButton.setText("Export CSV");
+                    exportCsvButton.setGraphic(exportIcon);
+
+                    if (result.isSuccess()) {
+                        FileChooser fileChooser = new FileChooser();
+                        fileChooser.setTitle("Save CSV File");
+                        fileChooser.setInitialFileName("users_export.csv");
+                        fileChooser.getExtensionFilters().add(
+                            new FileChooser.ExtensionFilter("CSV Files", "*.csv"));
+
+                        File file = fileChooser.showSaveDialog(SceneManager.getPrimaryStage());
+                        if (file != null) {
+                            try (FileOutputStream fos = new FileOutputStream(file)) {
+                                fos.write(result.getData());
+                            } catch (IOException ex) {
+                                // Show error
+                            }
+                        }
+                    }
+                }));
+        });
+
         prevButton.setOnAction(e -> {
             currentPage[0]--;
             loadUsersRef[0].run();
@@ -1834,9 +1872,9 @@ public class DashboardController {
         header.setPadding(new Insets(12, 16, 12, 16));
         header.setAlignment(Pos.CENTER_LEFT);
 
-        String[] columns = {"Username", "Email", "Name", "Company", "Role", "Status", "Actions"};
-        String[] sortFields = {"username", "email", "firstName", "company", null, "enabled", null};
-        double[] widths = {130, 180, 130, 120, 80, 80, 140};
+        String[] columns = {"Username", "Email", "Name", "Company", "Role", "Status", "Last Login", "Actions"};
+        String[] sortFields = {"username", "email", "firstName", "company", null, "enabled", "lastLogin", null};
+        double[] widths = {120, 160, 120, 100, 70, 70, 100, 120};
 
         for (int i = 0; i < columns.length; i++) {
             final int index = i;
@@ -1892,7 +1930,7 @@ public class DashboardController {
         row.setOnMouseEntered(e -> row.setStyle("-fx-background-color: #334155; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;"));
         row.setOnMouseExited(e -> row.setStyle("-fx-background-color: transparent; -fx-border-color: #334155; -fx-border-width: 0 0 1 0;"));
 
-        double[] widths = {130, 180, 130, 120, 80, 80, 140};
+        double[] widths = {120, 160, 120, 100, 70, 70, 100, 120};
 
         // Username (clickable for details)
         Label usernameLabel = new Label(user.getUsername() != null ? user.getUsername() : "-");
@@ -1992,7 +2030,32 @@ public class DashboardController {
 
         actionsBox.getChildren().addAll(editBtn, statusBtn, deleteBtn);
 
-        row.getChildren().addAll(usernameLabel, emailLabel, nameLabel, companyLabel, roleBox, statusBox, actionsBox);
+        // Last Login column
+        String lastLoginText = "Never";
+        if (user.getLastLogin() != null) {
+            long diffMs = System.currentTimeMillis() - user.getLastLogin().getTime();
+            long diffMins = diffMs / (60 * 1000);
+            long diffHours = diffMs / (60 * 60 * 1000);
+            long diffDays = diffMs / (24 * 60 * 60 * 1000);
+
+            if (diffMins < 1) {
+                lastLoginText = "Just now";
+            } else if (diffMins < 60) {
+                lastLoginText = diffMins + "m ago";
+            } else if (diffHours < 24) {
+                lastLoginText = diffHours + "h ago";
+            } else if (diffDays < 7) {
+                lastLoginText = diffDays + "d ago";
+            } else {
+                lastLoginText = new SimpleDateFormat("MMM dd").format(user.getLastLogin());
+            }
+        }
+        Label lastLoginLabel = new Label(lastLoginText);
+        lastLoginLabel.setTextFill(user.getLastLogin() != null ? Color.web("#94A3B8") : Color.web("#64748B"));
+        lastLoginLabel.setFont(Font.font("System", 11));
+        lastLoginLabel.setPrefWidth(widths[6]);
+
+        row.getChildren().addAll(usernameLabel, emailLabel, nameLabel, companyLabel, roleBox, statusBox, lastLoginLabel, actionsBox);
 
         return row;
     }
@@ -2066,7 +2129,17 @@ public class DashboardController {
         usernameLabel.setTextFill(Color.WHITE);
         Label emailLabel = new Label(user.getEmail());
         emailLabel.setTextFill(Color.web("#94A3B8"));
-        userNameBox.getChildren().addAll(usernameLabel, emailLabel);
+
+        // Last login info
+        String lastLoginInfo = "Last login: Never";
+        if (user.getLastLogin() != null) {
+            lastLoginInfo = "Last login: " + new SimpleDateFormat("MMM dd, yyyy 'at' HH:mm").format(user.getLastLogin());
+        }
+        Label lastLoginLabel = new Label(lastLoginInfo);
+        lastLoginLabel.setFont(Font.font("System", 11));
+        lastLoginLabel.setTextFill(Color.web("#64748B"));
+
+        userNameBox.getChildren().addAll(usernameLabel, emailLabel, lastLoginLabel);
 
         userInfo.getChildren().addAll(avatar, userNameBox);
 

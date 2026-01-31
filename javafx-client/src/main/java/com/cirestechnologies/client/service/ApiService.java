@@ -105,6 +105,42 @@ public class ApiService {
     }
 
     /**
+     * Export users to CSV (Admin only)
+     */
+    public CompletableFuture<ApiResult<byte[]>> exportUsersToCsv(String token, String search) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                StringBuilder urlBuilder = new StringBuilder(BASE_URL + "/users/export/csv");
+                if (search != null && !search.trim().isEmpty()) {
+                    try {
+                        urlBuilder.append("?search=").append(java.net.URLEncoder.encode(search.trim(), "UTF-8"));
+                    } catch (Exception e) {
+                        urlBuilder.append("?search=").append(search.trim());
+                    }
+                }
+
+                Request request = new Request.Builder()
+                        .url(urlBuilder.toString())
+                        .header("Authorization", token)
+                        .get()
+                        .build();
+
+                try (Response response = client.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        byte[] bytes = response.body().bytes();
+                        return ApiResult.success(bytes);
+                    } else {
+                        String responseBody = response.body() != null ? response.body().string() : "";
+                        return ApiResult.error("Failed to export users: " + getErrorMessage(responseBody, response.code()));
+                    }
+                }
+            } catch (IOException e) {
+                return ApiResult.error("Connection error: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
      * Upload a JSON file to batch import users (Admin only)
      */
     public CompletableFuture<ApiResult<BatchImportResult>> batchImportUsers(String token, File file) {

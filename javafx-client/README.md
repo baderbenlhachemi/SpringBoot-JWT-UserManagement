@@ -12,6 +12,7 @@ A default admin user is automatically created when the backend starts:
 |-------|-------|
 | **Username** | `admin` |
 | **Password** | `admin` |
+| **Email** | `admin@localhost.com` |
 | **Role** | Administrator (full access) |
 
 ### Steps to Run
@@ -29,25 +30,56 @@ A default admin user is automatically created when the backend starts:
 
 3. **Login** with username `admin` and password `admin`
 
-## Features
+## ✨ Features
 
 ### 🔐 Authentication
 - Secure login with JWT token authentication
 - Session management with automatic token handling
 - Beautiful animated login screen with gradient effects
+- Last login tracking
+
+### 📊 Dashboard
+- Welcome message with user info
+- Quick action cards for navigation
+- **User Statistics (Admin)** - Real-time stats with:
+  - Total users count
+  - Admin count with percentage
+  - Regular users with percentage
+  - New users today
+  - Refresh button for live updates
 
 ### 👤 User Profile
 - View your complete profile information
+- **Edit Profile** - Update your personal information
+- **Change Password** - Secure password update
 - Display user role (Admin/User)
 - Avatar with initials
 
-### 👥 User Generation
+### 👥 User Management (Admin Only)
+
+#### All Users Page
+- **Paginated User Table** with sortable columns
+- **Search** - Find users by name, email, company
+- **Export to CSV** - Download filtered or all users
+- **Last Login Column** - Shows relative time (e.g., "2h ago")
+- **Status Column** - Active/Disabled indicator
+- **Role Badges** - Visual role indicators
+
+#### User Actions
+- **View/Edit User** - Click username or edit button to open modal
+- **Change Role** - Promote/demote users (ADMIN ↔ USER)
+- **Enable/Disable** - Toggle user account status
+- **Delete User** - Remove users with confirmation
+
+### 🔄 User Generation (Admin Only)
 - Generate fake users with configurable count
+- **Specify Admin Count** - Choose how many admins to generate
 - Download users as JSON file
 - Uses the backend's Faker library integration
 
-### 📁 Batch Import
+### 📁 Batch Import (Admin Only)
 - Upload JSON files to import users
+- Drag & drop support
 - Visual progress feedback
 - Import results with success/failure statistics
 
@@ -56,7 +88,10 @@ A default admin user is automatically created when the backend starts:
 - View complete user details
 - Role-based access control
 
-## Screenshots
+### ⚙️ Settings
+- **Change Password** - Update your password securely
+
+## 🎨 User Interface
 
 The application features a modern dark theme with:
 - Gradient accent colors (Indigo to Purple)
@@ -64,6 +99,8 @@ The application features a modern dark theme with:
 - Responsive sidebar navigation
 - Card-based layouts
 - Beautiful iconography using Ikonli
+- Modal dialogs for editing
+- Toast notifications for feedback
 
 ## Prerequisites
 
@@ -124,6 +161,9 @@ javafx-client/
 │       │   ├── AuthResponse.java              # JWT auth response model
 │       │   ├── User.java                      # User model
 │       │   ├── Role.java                      # Role model
+│       │   ├── UserStats.java                 # User statistics model
+│       │   ├── UserListResponse.java          # Paginated user list
+│       │   ├── PasswordChangeRequest.java     # Password change DTO
 │       │   └── BatchImportResult.java         # Import result model
 │       ├── service/
 │       │   ├── ApiService.java                # REST API client
@@ -168,11 +208,21 @@ javafx-client/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/auth` | User authentication |
+| POST | `/api/auth` | User authentication (updates lastLogin) |
+| GET | `/api/users/me` | Get current user profile |
+| PUT | `/api/users/me` | Update current user profile |
+| POST | `/api/users/me/password` | Change password |
+| GET | `/api/users` | List all users (paginated, searchable) |
+| GET | `/api/users/{username}` | Get user by username |
+| GET | `/api/users/id/{id}` | Get user by ID |
+| PUT | `/api/users/{id}` | Update user (Admin) |
+| DELETE | `/api/users/{id}` | Delete user (Admin) |
+| PATCH | `/api/users/{id}/role` | Change user role (Admin) |
+| PATCH | `/api/users/{id}/status` | Enable/disable user (Admin) |
 | GET | `/api/users/generate/{count}` | Generate fake users |
 | POST | `/api/users/batch` | Batch import users |
-| GET | `/api/users/me` | Get current user profile |
-| GET | `/api/users/{username}` | Get user by username |
+| GET | `/api/users/export/csv` | Export users to CSV |
+| GET | `/api/stats/users` | Get user statistics |
 
 ## Configuration
 
